@@ -1,0 +1,5 @@
+.*.swp
+*.o
+tags
+testfile
+*.out
