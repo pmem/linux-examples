@@ -1,0 +1,53 @@
+This is util/README.
+
+These are not the examples you're looking for.
+
+This directory just contains common routines for printing errors
+and debug information.  Nothing particularly interesting here
+and nothing to do with Persistent Memory.  Check out ../README
+to see which directories contain the examples.
+
+To use these routines, include util.h and compile util.c into
+your program.  These are trivial to write, but they turn up
+again and again so they're here when you need them.  They are:
+
+DEBUG(...)		printf-like output to stderr, but only if
+			the global flag Debug is non-zero  The output
+			includes file:line, name of function, and
+			gets a newline appended.  You can use DEBUG(NULL)
+			to just trace that a line was executed.
+
+int Debug = 1;		Put this at the top of one of your source files
+			to turn on the DEBUG() statements mentioned above.
+
+FATAL(...)		printf-like output to stderr with no return --
+			just like DEBUG() above but then this function
+			calls exit(1).
+
+FATALSYS(...)		Same as FATAL() above, but the message contains
+			the equivalent of perror() appended to it.
+
+USAGE(...)		Prints to stderr "Usage: <progname>" followed by
+			the argument format from taken from the global
+			variable Usage, followed by any printf-like message
+			given as arguments to USAGE().  Calls exit(1).
+
+char Usage[] =		Put this at the top of one of your source files
+    "args...";		so USAGE() knows how to print the argument format.
+
+Myname = argv[0];	Put this at the top of your main() so USAGE()
+			knows what name to print.
+
+ASSERT(cnd);		Assert that condition is true, turns into FATAL()
+			if it isn't.  Prints the condition on failure.
+
+ASSERTinfo(cnd, info);	Same as ASSERT() above, except it also includes
+			the additional information (info must be a string).
+
+ASSERTeq(lhs, rhs);	Assert two integer-valued expressions are equal,
+			if not calls FATAL() to print both expressions
+			and their values.  Handy for printing everything you
+			need to work on a blown assertion without having
+			to wish you had printed the values.
+
+ASSERTne(lhs, rhs);	Assert two integer-valued expressions are not equal.

@@ -1,0 +1,75 @@
+This is libpmem/README.
+
+libpmem contains some helper functions for using Persistent Memory.
+Using libpmem on Linux is optional, since the POSIX APIs for accessing
+memory-mapped files will work just fine.  But using libpmem allows you
+to optimize things like flushing changes to persistent memory (using
+the POSIX msync() works fine, but is page-based, where pmem_persist()
+can take byte-ranges and do whatever work is necessary, avoiding calling
+into the kernel if possible).
+
+See ../LINUX_PMEM_API.txt for a detailed description of the Linux API
+for Persistent Memory programming.
+
+To support debugging and testing, libpmem contains a few other things
+not required by the LINUX_PMEM_API.txt document.  To see the full
+list of libpmem features, see LIBPMEM_API.txt in this directory.
+
+As this is just a sample implementation, libpmem has not been benchmarked
+and optimized for performance.  The following platform assumptions have
+been made for this version:
+
+- x86_64 Linux is assumed.
+
+- As part of the x86 architecture assumption mentioned above, this
+  code assumes cache lines are 64 bytes and the base page size is 4k.
+
+- By default, libpmem assumes you have Persistent Memory exposed to you
+  by a PM-aware file system that doesn't use the page cache like PMFS
+  (see https://github.com/linux-pmfs).  If you are playing with these
+  examples on a non-PM-aware file system (basically just using traditional
+  memory-mapped files), use the libpmem call pmem_msync_mode() to tell
+  the library to use msync() to make changes durable.  When in doubt, use
+  msync mode since it will work everywhere, real PM or not real PM.  Most
+  of the example programs take an option, -M, to switch to this mode.
+
+- It is assumed the Persistent Memory and the platform both support making
+  changes durable to Persistent Memory by flushing the processor caches
+  alone.  The libpmem function pmem_drain_pm_stores() is empty in this
+  implementation.  Platforms with Intel's ADR feature will flush any stores
+  that are still sitting in HW buffers when power loss occurs, and this may
+  be sufficient for some PM products and use cases.  But for real applications
+  you must check with the PM manufacturer to understand what is required
+  to make changes durable.
+
+  None of this matters when you are just playing with these examples
+  as long as you don't try testing the power failure case.  For development,
+  see the fault injection mechanisms described in ../icount/README which
+  help you test code for resilience in the face of random crashes, without
+  actually having to crash the physical machine.
+
+If you are interested in using libpmem on a PM-aware file system and doing
+very latency-sensitive performance analysis, consider using the inline version
+available in pmem_inline.h.
+
+TODO
+
+Here's a list of potential enhancements for this libpmem:
+
+	- Provide get/set attribute functions in accordance with the
+	  SNIA NVM Programming model.  Use these interfaces to expose
+	  details about what a specific PM product provides such as
+	  atomicity sizes, ECC block sizes, etc.
+
+	- Add logic to pmem_persist() to call msync(2) if the PM requires it.
+
+	- Remove dependence on 64-bit by validating this on 32-bit Linux.
+
+	- Check CPU_ID to confirm CLFLUSH is available before using it.
+
+	- Consider a more portable version that doesn't depend on x86.
+
+	- Consider adding some general-purpose helper routines for larger
+	  atomics, memory allocation, transactions, etc.
+
+	- Benchmark & tune.

@@ -1,0 +1,209 @@
+NAME
+	Linux Persistent Memory Application Programming Interface
+
+SYNOPSIS
+	#include <sys/types.h>
+	#include <sys/mman.h>
+	#include <sys/stat.h>
+	#include <fcntl.h>
+	#include <pmem.h>
+	cc ... -lpmem
+
+	/* open a Persistent Memory file */
+	fd = open("/path/to/pm-aware-filesystem/file", O_RDWR);
+
+	/* map it */
+	base = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+
+	/* optional, instead of mmap line above: */
+	base = pmem_map(fd, len);
+
+	/* ... use loads and stores to access PM at *base ... */
+
+	/* make changes persistent */
+	msync(addr, nbytes, MS_SYNC);
+
+	/* optional, instead of mmap line above: */
+	pmem_persist(addr, nbytes, 0);
+
+	/* other interfaces described in this document... */
+	void pmem_flush_cache(void *addr, size_t len, int flags);
+	void pmem_fence(void);
+	void pmem_drain_pm_stores(void);
+	POSIX file APIs
+
+	NOTE: If libpmem has not been installed on this system, you'll
+	      want to arrange for "pmem.h" to be included via a non-system
+	      path, and you'll want to arrange to either find libpmem to be
+	      using LD_LIBRARY_PATH or use the static version, libpmem.a.
+
+DESCRIPTION
+
+	This document describes the Linux API for accessing Persistent
+	Memory (PM).  The Linux Persistent Memory API follows the
+	"NVM.PM.FILE" programming model as described in the NVM Programming
+	Model Specification published by the SNIA NVM Programming Technical
+	Work Group (except as noted in the TODO section below).  See
+	http://www.snia.org/ for more information.
+
+	The prerequisites to using this API are to install some Persistent
+	Memory in your system and then expose that Persistent Memory using
+	the appropriate device driver and a PM-aware file system such as PMFS
+	(for more information on PMFS, see https://github.com/linux-pmfs).
+	Of course, it is possible to develop code using these APIs without
+	having actual Persistent Memory hardware available, for example by
+	using volatile DRAM as "pretend" Persistent Memory.  All the APIs
+	below will work, but things like power failure testing will not be
+	available during development.
+
+	POSIX file APIs
+
+		The PM-aware file system exposes Persistent Memory as
+		files, so POSIX file APIs work as expected.  This includes
+		the obvious basic operations, such as:
+
+			open(2)
+			close(2)
+			read(2)
+			write(2)
+			fsync(2)
+			mmap(2)
+			msync(2)
+
+		and typically includes the most common operations for
+		managing files, such as:
+
+			chmod(2)
+			chown(2)
+			closedir(3)
+			creat(2)
+			lseek(2)
+			mkdir(2)
+			opendir(3)
+			readdir(3)
+			readlink(2)
+			rename(2)
+			rmdir(2)
+			symlink(2)
+			utimes(2)
+			... and many more ...
+
+		In fact, most C library calls designed to operate on files
+		will work with Persistent Memory just like they work with
+		other file systems.  Like any file system, a PM-aware file
+		system may or may not implement all possible interfaces,
+		returning "Not supported" for some of them.
+
+		Another aspect of a PM-aware file system is that Persistent
+		Memory files can be managed using common command-line
+		utilities like cp, mv, ls, and tar.
+
+	int open(const char *pathname, int flags, mode_t mode);
+
+		To begin accessing Persistent Memory, open(2) is used
+		just as it would be for any other file.  The open mode
+		specifies whether the file is opened read-only (O_RDONLY),
+		for read/write (O_RDWR), etc.
+
+	void *mmap(void *addr, size_t length, int prot, int flags,
+	           int fd, off_t offset);
+
+		The next step to using Persistent Memory is to map it
+		into the address space of the process using mmap(2).
+		For Persistent Memory, the flag MAP_SHARED is most
+		commonly used, providing the application with direct
+		access to the Persistent Memory.  For traditional files,
+		using mmap this way will "demand-page" data in and out
+		of the system page cache as it is accessed.  This results
+		in unexpected latencies as when page faults occur.  But
+		with Persistent Memory, the page cache is avoided, providing
+		direct, uniform access to the memory itself.
+		
+		The flag MAP_PRIVATE may be used, in which case reads will
+		come directly from Persistent Memory until a page is written
+		for the first time.  At that point, a copy-on-write will
+		happen and the modified page will be located in volatile DRAM.
+		MAP_PRIVATE pages are never written back to Persistent Memory
+		and are discarded when the process calls munmap(2) or it
+		exits.
+
+	void *pmem_map(int fd, size_t len);
+
+		This function is just a convenience function that calls
+		mmap(2) with the appropriate arguments.  It is entirely
+		programmer preference on whether you use this function or
+		call mmap directly.
+
+	int msync(void *addr, size_t length, int flags);
+
+		Force any changes in the range [addr, addr+len) to be stored
+		durably in Persistent Memory.  POSIX specifies (and Linux
+		enforces) that addr must be page-aligned, which may force
+		the call to flush more data than required.  See pmem_persist()
+		below for an alternate solution.  Note that the traditional
+		definition of msync is to search the "page cache" for dirty
+		pages.  But for Persistent Memory, the page cache is not
+		involved and msync's effect is more related to flushing dirty
+		data from the processor's cache and other HW buffers to make
+		sure it is fully persistent.
+
+		WARNING: The semantics of msync(2) have always been to
+		         check for unwritten changes and write them out.
+			 Nothing prevents changes from being written out
+			 before msync is called and no atomic or transactional
+			 behavior is implied by the msync call.  It is a
+			 "flush" operation to catch anything that hasn't
+			 been flushed already.
+
+	void pmem_persist(void *addr, size_t len, int flags);
+
+		Force any changes in the range [addr, addr+len) to be stored
+		durably in Persistent Memory.  This is equivalent to calling
+		msync(2) as described above, but may be more optimal and will
+		avoid calling into the kernel if possible.
+
+		No flags have been defined for this call yet.
+
+		WARNING: Like msync(2) described above, there is nothing
+		         atomic or transactional about this call.  Any
+			 unwritten stores in the given range will be written,
+			 but some stores may have already been written by
+			 virtue of normal cache eviction/replacement policies.
+			 Correctly written code must not depend on stores
+			 waiting until pmem_persist() is called to become
+			 persistent -- they can become persistent at any time
+			 before pmem_persist() is called.
+
+	void pmem_flush_cache(void *addr, size_t len, int flags);
+	void pmem_fence(void);
+	void pmem_drain_pm_stores(void);
+
+		These three functions provide partial versions of the
+		pmem_persist() function described above.  pmem_persist()
+		can be thought up as this:
+
+		void pmem_persist(void *addr, size_t len, int flags)
+		{
+			/* flush the processor caches */
+			pmem_flush_cache(addr, len, flags);
+
+			/* Persistent Memory store barrier */
+			pmem_fence();
+
+			/* wait for any PM stores to drain from HW buffers */
+			pmem_drain_pm_stores();
+		}
+
+		These functions allow advanced programs to create their
+		own variations of pmem_persist().  For example, a program
+		that needs to flush several discontiguous ranges can call
+		pmem_flush_cache() for each range and then follow up by
+		calling the pmem_fence() and pmem_drain_pm_stores() once.
+
+SEE ALSO
+	open(2), mmap(2), msync(2)
+
+TODO
+
+- Add support for the get/set attributes actions defined by the SNIA
+  NVM.PM.FILE programming model.

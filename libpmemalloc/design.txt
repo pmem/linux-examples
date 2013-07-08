@@ -1,0 +1,85 @@
+the memory pool:
+
+	the memory pool begins with 4 pages, 4k each:
+		offset 0: this page is invalidated (via mprotect)
+		          (this is so dereferencing a NULL pointer faults)
+		offset 4096: this page is the "static" 4k area
+		offset 8192: another invalid page (red zone after static area)
+		offset 12288: memory pool header, fields are:
+			signature: "*PMEMALLOC_POOL\0"
+			totalsize: total file size
+			(rest of 4k area padded with zeroes)
+
+	the remainder of memory pool starts at offset 16384 and
+	is managed as an array of 64-byte chunks, divided up into
+	memory "clumps".  each clump is has a 64-byte preamble
+	and the associated memory.  the 64-byte header contains:
+		nbytes: number of bytes in this clump (includes header bytes)
+		state: zero means free, non-zero means not free
+		       the possible states are:
+			       FREE, RESERVED, ACTIVATING, ACTIVE, FREEING
+		on: the list of pointer assignments to do onactive or onfree.
+
+	when a memory pool is initially created, there would be a single
+	clump at offset 16384 whose size represent all the memory in the
+	file from 16384-EOF.
+
+	each time a new allocation happens via pmemalloc_reserve(), the clump
+	that is chosen for the allocation is divided into two (if the clump
+	size is at least 128 bytes larger than the allocation request,
+	otherwise the entire clump is used without dividing it).
+
+	example, an allocation request for 1000 bytes in this memory pool:
+
+		|256 ACTIVE|2048 FREE|256 ACTIVE|
+
+	would start by rounding the request up to a multiple of 64 (1024)
+	and would then scan the pool, starting from the first entry, looking
+	for the first fit.  each time it doesn't find a match, it adds
+	the clump size find the next clump.  in this example, it finds
+	the second clump of size 2048.  since 2048 - 1024 = 1024, and that's
+	bigger than 128, the allocator divides the clump in two, leaving this:
+
+		|256 ACTIVE|1024 RESERVED|1024 FREE|256 ACTIVE|
+
+	when freed via pmemalloc_free(), an allocation is marked FREE and is
+	coalesced with adjent FREE clumps.  crash recovery automatically
+	scans the memory pool for RESERVED allocations and frees them.
+
+states and transitions:
+
+	the above algorithms are made crash-safe by careful ordering of
+	any operation done to the memory pool.  on recovery from a crash,
+	it must be possible to determine the state of each clump and
+	for any clumps that are not FREE or ACTIVE, the state must either
+	be advanced to the ACTIVE state, or reverted to the FREE state
+	(finishing state transitions or undoing state transitions as
+	appropriate).  the most common recovery is to take a RESERVED clump
+	and return it to the FREE state, but the recovery algorithm must
+	handle a crash between any two instructions from the first instruction
+	of pmemalloc_reserve() to the last instruction of pmemalloc_activate().
+
+states:
+
+	A clump of memory in the pmem pool can be thought of as moving
+	between these states:
+
+		0. FREE
+		1. RESERVED
+		2. ACTIVATING
+		3. ACTIVE
+		4. FREEING
+		0. FREE
+
+recovery:
+
+	for each RESERVED clump:
+		return the clump to the FREE state
+
+	for each ACTIVATING clump:
+		progress the clump on to the ACTIVE state
+
+	for each FREEING clump:
+		progress the clump on to the FREE state
+
+	coalesce any adjacent free clumps

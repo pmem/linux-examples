@@ -1,0 +1,94 @@
+This is icount/README.
+
+These are not the examples you're looking for.
+
+This directory contains the icount code, which is a small set of
+routines allowing a program to count instructions executed between
+two points.  We use these routines to perform fault injection testing
+(FIT) on many of the examples to see how well they recover after a
+simulated system crash.  See ../README for the directories that contain
+the examples.
+
+You're still here?  You should be off reading the examples, but if
+you're really interested in the icount module, you can read all about it:
+
+icount.c contains a few routines that can be compiled into a program
+allowing it to count instructions between two points in the program
+execution.  In addition, the program can be terminated after a given
+number of instructions have passed.  This can be used for some fault
+injection testing where crashes are simulated by terminating the program
+at various points.
+
+This implementation is very quick & dirty -- no attempt has been made
+to do any performance work.  While counting instructions, the program
+is single-stepped.  Expect it to be slow.  Also, using single-stepping
+counts up who-knows-what when signals are involved -- probably best not
+to try counting any code using signals.  Or multi-threaded programs for
+that matter.  Syscalls are not counted (just the code leading up to them
+and the code following them).  Calling fork or exec while counting
+instructions almost certainly won't do what you want.  In fact, best
+to not use these routines at all without talking to Andy first.
+
+Also, this hasn't been tested on anything but Linux x86_64.
+
+To use these routines, include "icount.h" in your program.
+
+To start counting instructions, call:
+
+	icount_start(0);
+
+to stop counting, call:
+
+	icount_stop();
+
+calling icount_start() resets the count to zero before starting to
+count.  If you pass something other than zero to icount_start(), it
+will execute that number of instructions and then terminate the program.
+
+The current count (between the last pair of icount_start/icount_stop calls)
+is accessed by calling:
+
+	icount_total();
+
+There's a trivial example which is used to unit test the icount code
+in icount_test.c.  To run the unit test, do:
+
+	make
+	./icount_test
+
+to simulate a crash three instructions into the code snippet under test:
+
+	./icount_test 3
+
+This directory also contains a Perl script call "allcounts".  This script
+runs your test program over and over again, simulating a crash at a different
+position in your snippet code under test.  The script then collates the
+output of all the runs into a summary so you can see how the program reacted
+to each crash.  The "allcounts" entry point in the Makefile shows you
+an example of how to use this script.
+
+Just a note on persistence: even if you crash a program between a store
+instruction and the calls that make sure the change is persistent, the
+store might still look like it was made persistent because it ends up
+flushed from a cache or accessed from that cache by some other program.
+So to really make this fault injection test worthwhile, you should use it
+with the "fit" mode in the libpmem library.  The fit mode is designed to
+more closely simulate how stores to Persistent Memory, still sitting in the
+processor cache at crash time, get dropped.
+
+
+TODO
+
+Here are some potential future enhancements:
+
+	- Performance work.  Using machine code analysis and breakpoints
+	  this could be made much faster.
+
+	- Simulated cache eviction.  We're good at dropping non-flushed
+	  stores, but we should also simulate stores that reach persistence
+	  early due to cache pressure or other system activity.
+
+	- Ability to run against programs without recompiling them.  Not
+	  that hard since we already "attach" to the program from another
+	  process.  The trick is finding the most convenient way to
+	  specify the start/stop points.

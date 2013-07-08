@@ -1,0 +1,47 @@
+This is basic/README.
+
+This is a very basic example of a program storing some data to
+Persistent Memory and then reading it back later.  This example
+also illustrates how to use libpmem to make sure stores are durable.
+
+usage: basic [-FMd] [-i icount] path [strings...]
+
+	Where <path> is a file on a Persistent Memory aware file system
+	like PMFS.  If path doesn't exist, this program will create it
+	with size DEFAULT_SIZE (defined below).
+
+	Any strings provided will be written to the Persistent Memory,
+	each terminated by a '\0' character.  If no strings are
+	provided, the Persistent Memory is dumped out in a manner similar
+	to strings(1).
+
+	The -F flag enables the fault injection testing version of libpmem.
+	This for more meaningful icount-based runs (see the -i flag below).
+
+	The -M flag enables the msync-based version of libpmem.
+	Use this when you don't have a PM-aware file system and you're
+	running on traditional memory-mapped files instead.
+
+	The -d flag turns on debugging prints.
+
+	The -i flag, if given, turns on instruction counting for the
+	code snippet under test (the code between icount_start() and
+	icount_stop() below).  Use "-i 0" to print the count, "-i N"
+	to simulate a crash after N instructions.  For more accurate
+	fault injection testing, use this with the -F flag described above.
+
+Here are examples of how to run the basic code:
+
+	basic testfile one two three
+	basic testfile
+
+Also, you can run the fault injection test using:
+
+	make allcounts
+
+This takes a while to run.  Notice how the fault injection tests show you
+only parts of strings getting stored in some crash scenarios.  This example
+illustrates how your Persistent Memory data structures can be in unexpected
+states due to system interruptions or program crashes.  Compare this example
+with something like the linked-list test in ../libpmemalloc, where extra
+work is done to prevent half-done entries into the PM data structure.

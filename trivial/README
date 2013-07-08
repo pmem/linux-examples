@@ -1,0 +1,13 @@
+This is trivial/README.
+
+This is the most trivial example I could come up with to illustrate
+how to memory map Persistent Memory, store a few bytes to it, and
+make the stores durable.  The example is totally self-contained in
+a single file.  No hard problems are solved in this example -- it
+just shows you how to use mmap() and msync().
+
+To build this use:
+	make
+
+To run a trivial test use:
+	make test

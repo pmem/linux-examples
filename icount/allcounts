@@ -1,0 +1,127 @@
+#!/usr/bin/perl
+
+# Copyright (c) 2013, Intel Corporation
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+# 
+#     * Redistributions in binary form must reproduce the above copyright
+#       notice, this list of conditions and the following disclaimer in
+#       the documentation and/or other materials provided with the
+#       distribution.
+# 
+#     * Neither the name of Intel Corporation nor the names of its
+#       contributors may be used to endorse or promote products derived
+#       from this software without specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#
+# allcounts -- script to run through all possible crash scenarios
+#
+# Given a program that contains a (hopefully small) snippet of test
+# code surrounded by icount_start() and icount_stop() calls, this
+# script runs the program once to find the total instruction count
+# (expected to be printed as "Total instruction count: N") and then
+# it re-runs the same test over and over, passing it the number of
+# instructions to run before simulating a crash as a command line
+# argument.  See icount_test.c for a full example of a program written
+# to be tested by this script.
+#
+# This script captures all the output from all the runs and colates
+# the result, dumping a list of run numbers followed by the output
+# produced by those runs.  Since stopping a program between each possible
+# instruction often produces the same output again and again, the collated
+# output is much shorter and much easier to read that looking at the
+# full raw output from every single run.
+#
+
+use strict;
+use warnings;
+
+die "Usage: $0 pre-command command post-command\n" unless $#ARGV == 2;
+
+my $precmd = shift;
+my $cmd = shift;
+my $postcmd = shift;
+my $fullcmd;
+
+print " Pre-Command: \"$precmd\"\n";
+print "     Command: \"$cmd\"\n";
+print "Post-Command: \"$postcmd\"\n";
+
+`$precmd`;
+$fullcmd = subC(0);
+my $total = `$fullcmd; $postcmd`;
+
+print "Full output:\n", $total;
+
+my %outputs;
+
+$total =~ s/.*Total instruction count: (\d+).*/$1/s or
+	die "Instruction count not found\n";
+
+# don't need to try zero, and don't need to try all
+# just each number in-between
+for (my $i = 1; $i < $total; $i++) {
+	print "Running up to $i instructions... ";
+	`$precmd`;
+	$fullcmd = subC($i);
+	my $out = `$fullcmd 2>&1; $postcmd 2>&1`;
+	$out =~ s/Program terminated after $i instructions\n//;
+	push(@{$outputs{$out}}, $i);
+	print "\r";
+}
+print "All runs complete.                      \n";
+
+#
+# show results in line number order
+#
+foreach my $out (sort { $outputs{$a}[0] <=> $outputs{$b}[0] } keys %outputs) {
+
+	#
+	# compress "number,number,number,..." to "low-high" as appropriate
+	my $iters = shift @{$outputs{$out}};
+	my $rhs = $iters;
+	my $foundrange = 0;
+	while (@{$outputs{$out}}) {
+		my $val = shift @{$outputs{$out}};
+		if ($val == $rhs + 1) {
+			$rhs++;
+			$foundrange = 1;
+		} else {
+			$iters .= "-$rhs" if $foundrange;
+			$iters .= ",$val";
+			$rhs = $val;
+			$foundrange = 0;
+		}
+	}
+	$iters .= "-$rhs" if $foundrange;
+
+	print "Output for iterations: $iters\n";
+	print $out, "\n";
+}
+
+sub subC {
+	my $c = shift;
+	my $retval = $cmd;
+
+	$retval =~ s/%C/$c/;
+	return $retval;
+}
+
+exit 0;

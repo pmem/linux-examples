@@ -1,0 +1,105 @@
+NAME
+	libpmem -- Persistent Memory programming helper library
+
+SYNOPSIS
+	#include <pmem.h>
+	cc ... -lpmem
+
+	void pmem_msync_mode(void);
+	void pmem_fit_mode(void);
+
+	void *pmem_map(int fd, size_t len);
+	void pmem_persist(void *addr, size_t len, int flags);
+
+	void pmem_flush_cache(void *addr, size_t len, int flags);
+	void pmem_fence(void);
+	void pmem_drain_pm_stores(void);
+
+	NOTE: If libpmem has not been installed on this system, you'll
+	      want to arrange for "pmem.h" to be included via a non-system
+	      path, and you'll want to arrange to either find libpmem to be
+	      using LD_LIBRARY_PATH or use the static version, libpmem.a.
+
+DESCRIPTION
+
+	libpmem provides some optional helper functions for using
+	Persistent Memory ("optional" because you can use Persistent
+	Memory without using libpmem if you so desire).  Some of the things
+	described here are experimental features provided as part of the
+	example code tree.  If you're just looking for the Linux API for
+	Persistent Memory programming, read ../LINUX_PMEM_API.txt instead.
+
+	void pmem_msync_mode(void)
+
+		To use libpmem in "msync mode" call pmem_msync_mode() in
+		your program before any other calls to libpmem.  msync mode
+		tells libpmem to use msync(2) for flushing changes to
+		Persistent Memory.  This is useful when developing on a
+		non-PM-aware file system (using normal memory-mapped files).
+		msync mode will work anywhere, PM-aware file system or
+		non-PM-aware file system, so if you're unsure, this is the
+		mode to use.  The default mode (what you get without calling
+		pmem_msync_mode() is to assume stores can be made durable
+		by flushing caches without calling into the kernel.
+
+		Of course, if you're just developing without actual Persistent
+		Memory hardware (using volatile memory as pretend-PM), it
+		doesn't matter much which mode you use since a surprise
+		power failure will lose anything you stored anyway.
+
+	void pmem_fit_mode(void);
+
+		To use libpmem in "fault injection test mode", call
+		pmem_fit_mode() in your program before any other calls to
+		libpmem.  This mode is meant for use with the experimental
+		"icount" routines which simulate crashes at various points
+		in your program.  This mode makes libpmem less forgiving
+		if you're missing calls to pmem_persist().  See icount/README
+		for details on how to use this mode.
+
+	void *pmem_map(int fd, size_t len);
+
+		This function is just a convenience function that calls
+		mmap(2) with the appropriate arguments.  The only time
+		you must use this function instead of mmap is when you're
+		using the experimental "fit mode" described above.  Otherwise
+		it is entirely programmer preference on whether you use
+		this function or call mmap directly.
+
+	void pmem_persist(void *addr, size_t len, int flags);
+
+		Force any changes in the len bytes at addr to be stored
+		durably in Persistent Memory.  This is equivalent to
+		calling msync(2) but may be more optimal and will avoid
+		calling into the kernel if possible.
+
+		No flags have been defined for this call yet.
+
+	void pmem_flush_cache(void *addr, size_t len, int flags);
+	void pmem_fence(void);
+	void pmem_drain_pm_stores(void);
+
+		These three functions provide partial versions of the
+		pmem_persist() function described above.  pmem_persist()
+		can be thought up as this:
+
+		void pmem_persist(void *addr, size_t len, int flags)
+		{
+			/* flush the processor caches */
+			pmem_flush_cache(addr, len, flags);
+
+			/* Persistent Memory store barrier */
+			pmem_fence();
+
+			/* wait for any PM stores to drain from HW buffers */
+			pmem_drain_pm_stores();
+		}
+
+		These functions allow advanced programs to create their
+		own variations on pmem_persist().  For example, a program
+		that needs to flush several discontiguous ranges can call
+		pmem_flush_cache() for each range and then follow up by
+		calling the pmem_fence() and pmem_drain_pm_stores() once.
+
+SEE ALSO
+	LINUX_PMEM_API.txt, mmap(2), msync(2)

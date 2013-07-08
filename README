@@ -1,1 +1,327 @@
-Content coming soon...
+LINUX EXAMPLES for PERSISTENT MEMORY PROGRAMMING
+
+This is the top-level README for the linux-examples repository.
+
+This repository contains some example programs for using Persistent Memory.
+
+The goal is to build up a collection of simple examples to help people
+understand how Persistent Memory is exposed to applications.  These are
+NOT PRODUCTION-QUALITY examples.  They are educational snippets of code
+to illustrate some basic concepts.  See the REFERENCES section below for
+more mature frameworks.
+
+These examples are built on the Linux Persistent Memory API described in:
+
+	LINUX_PMEM_API.txt
+
+
+PERSISTENT MEMORY
+
+Persistent Memory is an emerging technology providing a new tier between
+traditional storage and volatile memory with attributes from both.  The
+two main qualities of Persistent Memory are that it appears byte-addressable
+to applications (allowing load/store access rather than the block-based
+access of traditional storage) and that it is persistent.  The term
+Persistent Memory (PM), and the related term Storage Class Memory (SCM),
+may not have formal definitions that everyone agrees on, but these terms
+usually refer to memory that an application can access directly, without
+demand-paging blocks in and out of a storage device.  The performance of
+PM is typically such that a processor load instruction can reasonably wait
+for data from PM (instead of context switching while a page fault is
+serviced).  So technologies like hard disks and NAND Flash are not
+considered fast enough by themselves -- a PM product built on those
+technologies would have some additional hardware built in to maintain the
+performance expected by the processor during direct access.
+
+A number of Non-Volatile Memory (NVM) technologies emerging, like Phase
+Change Memory, Memristor, Spin-Toque, and others, may bring us into an
+era of very large PM capacities with performance more like DRAM than
+traditional storage.  This is appealing for applications requiring access
+to large data sets, without the huge DRAM footprint and non-deterministic
+access times seen when demand-paging is used.  Once you imagine applications
+storing information in PM, you quickly realize the need for a way to name
+regions of PM so that applications can re-connect to their data on start-up.
+Next, the need for a permission model and an administrative model for
+managing PM comes up (creating, deleting, backing it up, etc).  The
+industry direction for exposing PM to applications is for PM regions to
+be exposed via the native file APIs on an OS, or something very similar
+(see the SNIA information in the REFERENCES section below).  That's the
+approach taken with the examples found here.  An example of a
+Persistent-Memory-Aware file system that provides PM via native Linux file
+APIs is PMFS, available at:
+
+	https://github.com/linux-pmfs
+
+So when PM is accessed by memory mapping files, how is that different
+from traditional memory mapped files that have been a feature of many
+operating systems for decades?  If one writes a program that memory-maps
+a normal file using the Linux mmap(2) system call, accesses it with loads
+and stores, and makes changes durable using the Linux msync(2) system
+call, will that program work without modification on a PM file?  Yes.
+But with a traditional file system, access to the memory-mapped file is 
+actually paging data in and out of DRAM, so mapping a file and changing
+a single byte involves a page fault (including a context switch or two),
+where a 4k block is read from storage into memory and a subsequent write
+of that 4k block to make the change durable.  With PM, it is possible
+to change that byte directly from the program, without wait for page faults
+or using any DRAM buffers.  On PM the impact of changing a byte of data
+is likely much less than a page (probably more like a cache-line read
+so the change can happen in the processor cache, followed by a cache-line
+flush to make the change durable).
+
+
+EXAMPLES
+
+Each example occupies a sub-directory here and the README in each
+sub-directory tells you why the example was written, how to run it and
+the tests for it, and what "make" targets are available to help you play
+with it.  At this top level, "make all" builds every example, "make clean"
+clears out intermediate files for all examples, and "make clobber"
+removes anything that is recreatable for all examples.
+
+Since these are for educational use, no attempt has been made to optimize
+them for performance, or even make then run on anything but Linux x86_64
+(they were all tested on a 64-bit Debian-based distro running the 3.2 kernel
+and gcc 4.7.2 initially).  Most of the examples are not MT-safe (unless
+making something MT-safe was part of the example).  All the examples are
+written in C and depend on nothing else besides libc and code in this repo.
+This is to keep things simple and illustrate the low-level primitives for
+Persistent Memory.  Hopefully over time some higher-level language support
+will become common place and we'll add additional examples as they become
+available.  See the TODO section below for some ideas if you're looking to
+contribute.
+
+As mentioned in the previous section, calling msync(2) to make stores
+to PM durable will work but since PM is directly-accessible, there may
+be more optimal ways available with some PM products.  For the purposes
+of these examples, a library, libpmem, has been provided and it includes
+this function which can be used instead of msync:
+
+	pmem_persist(addr, len, flags)
+
+injection testing of the examples.  See libpmem/README for more details
+on the methods available and the assumptions each method makes about the
+platform.
+
+What you'll find here:
+
+	LICENSE		The BSD license under which this code is available.
+
+	LINUX_PMEM_API.txt	The Linux Persistent Memory API, which is
+				really the decades-old memory-mapped file
+				API (part of POSIX) with a few optional
+				things added to it.
+
+	FAQ.txt		Frequenctly asked questions about these examples
+			about Persistent Memory.
+
+	trivial		A simple, self-contained, trivial example.  If you
+			don't know how to use mmap(2)/msync(2) or if you need
+			a reminder how they are used, start here.  It is
+			only a small step above just typing "man mmap" but
+			the example is explained, runnable, and includes
+			a trivial test you can play with.
+
+	basic		A very basic example.  It can store a few strings
+			to PM, it can read the strings already stored there.
+			This is the simplest example based on libpmem, so
+			it is a good place to start to understand how that
+			library is used.
+
+			See basic/README for details on how to run & test
+			this example, and how to use it with the "icount"
+			fault injection test mechanism.
+
+	libpmem		This library provides an optional part of the
+			Linux Persistent Memory API.  It is "optional"
+			because it is perfectly possible to use PM without
+			this library (as shown by the "trivial" example
+			described above).  But with this library, PM
+			programming is more convenient and some operations
+			are optimized.  If you're looking for examples of
+			PM programming, reading this code won't help you --
+			look at examples like trivial, basic, and binarytree.
+
+	libpmemalloc	A simple PM malloc-like library.  If you're
+			looking for some basic ideas to get you going
+			managing data structures in PM in a way that keeps
+			them consistent across crashes, this might be
+			a good place to start.  libpmemalloc/README explains
+			how the malloc-like library is used and tested,
+			and the file libpmemalloc/design.txt explains the
+			simple design that went into making it resilient
+			against crashes.  Don't forget to read about much
+			more complete PM memory allocation solutions in the
+			REFERENCES section below.
+
+	binarytree	Building on the libpmemalloc example, this is a
+			small example of a binary tree used to count the
+			frequency of variable length strings.
+
+	util		Some common routines for error reporting and
+			debug prints.  Not particularly interesting
+			and nothing to do with PM.
+
+	icount		Routines to count instructions and simulate crashes.
+			These are used for the fault injection runs where
+			we run a test, count the instructions executed by
+			the code snippet under test, and then re-run the test
+			again and again, simulating a crash between every pair
+			of instructions in the code snippet.  See
+			icount/README for details or you can see this is
+			action by running "make allcounts" in the basic
+			sub-directory.
+
+
+CODING CONVENTIONS
+
+Some of the examples store relative pointers in PM data structures
+so that those pointers remain valid even if the PM gets mapped into
+a different virtual address on subsequent runs (which is almost always
+the case).  There are multiple discussions on how to deal with this in
+papers mentioned in REFERENCES below.  For these examples, we take a very
+basic approach, making it the programmer's responsibility to keep track
+of which pointers are relative and which are absolute.  In the examples,
+you often see pointers with a trailing underscore, like this:
+
+	sp->root_
+
+the convention is that the trailing underscore is a reminder to the
+programmer that you cannot dereference that pointer without first adding
+the "base" of the PM to it.  The libpmemalloc example creates a macro
+to do this called PMEM().  Compilers like the Microsoft C++ compiler have a
+nifty "based pointer" mechanism so that the compiler largely takes care of
+this for the programmer.  But gcc has no such feature, so we're forced to
+do it by hand.  At least until languages begin to grow more mature PM
+programming features.
+
+Another small convention is that global variables have their first
+letter capitalized.  Beyond that, the code is basically K&R-style.
+
+
+TESTING
+
+For many years, file system implementers have carefully designed their
+data structures to recover from unexpected system crashes (power failures,
+kernel crashes, hardware failures).  This means designing in enough
+persistent information so that recovery after a crash can return the on-disk
+format to a consistent state.  The emergence of Persistent Memory brings
+all that logic into application space.  A traditional program might allocate
+memory like this:
+
+	struct node *np;
+
+	np = malloc(sizeof(*np));
+	/* ... fill in *np ... */
+	parent->next = np;
+
+With Persistent Memory, using a malloc-style interface as shown above
+would lead to a memory leak of the Persistent Memory between the point
+when malloc() removes the chunk from the free pool and the point where
+a persistent pointer is set to point at the newly-allocated memory.  Many
+strategies for handling this issue are available, including logging and
+reference counting.  But these algorithms can be difficult to test because
+it is difficult to simulate failures at the most vulnerable points in the
+algorithms.
+
+Most of the examples include test programs.  To validate that PM-resident
+data structures are managed in a way that is resilient to crashes, the
+icount code is used.  icount (described more in icount/README) provides a
+way to count the instructions executed in a test snippet of code, and the
+re-run that code again and again, simulating a crash between every possible
+pair of instructions in the test snippet.  Run "make allcounts" in the
+basic sub-directory for a demo.  Using the icount mechanism can be very,
+very time consuming.
+
+Note the difference between a "make allcounts" run for the basic example
+and a "make allcounts" run for the tree example.  In the basic example,
+the program just stores to PM and the simulated crashes leave the PM in
+random states, showing partial strings and other garbage.  Compare that
+to the tree example, which uses libpmemalloc to make sure things stay
+consistent across crashes.  In that example, when a tree_insert() is
+interrupted by a crash, the string being inserted either makes it completely
+into the tree or it doesn't.  And in the case where it doesn't, no Persistent
+Memory is leaked.  That's because the tree example is built on the atomic
+mechanisms in libpmemalloc, and that's the point of these examples.
+
+
+CONTACTS
+
+If you'd like to contribute more Persistent Memory programming examples
+(and we really hope you will!), please fork this project on github, add
+your example, and send a pull request.
+
+For more information, questions or comments, contact:
+
+	andy.rudoff@intel.com
+
+
+REFERENCES
+
+Some very interesting research has been happening in the area of
+Persistent Memory and more is emerging.  While the examples provided
+here are meant as introductory and simple, some publications cover
+the topic in much more depth and include complete transaction systems,
+compiler/language enhancements, etc.  Here are some of the most
+important publications in this space (please send links to more and
+I'll include them).
+
+- A Persistent Memory aware file system for Linux.  Under development at:
+
+	https://github.com/linux-pmfs
+
+- One of the most impressive bodies of work in this area is Mnemosyne.
+  Read the paper:
+
+	Haris Volos, Andres Jaan Tack, Michael M. Swift: Mnemosyne:
+	Lightweight Persistent Memory, The 16th ACM Conference on
+	Architectural Support for Programming Languages and Operating
+	Systems (ASPLOS 2011), March 2011, Newport Beach, California.
+
+  and explore the website, which includes full source and documentation:
+
+ 	http://research.cs.wisc.edu/sonar/projects/mnemosyne/
+
+- Another very relevant project is NV-Heaps.  Read the paper:
+
+	J. Coburn, et al.:NV-Heaps: Making Persistent Objects Fast and Safe
+	with Next Generation, Non-Volatile Memories, The 16th ACM Conference
+	on Architectural Support for Programming Languages and Operating
+	Systems (ASPLOS 2011), March 2011, Newport Beach, Ca.
+
+- The June 2013 issue of USENIX ;login: contains an article that discusses
+  the NVM Programming Model, including a discussion of Persistent Memory.
+
+  	https://www.usenix.org/publications/login/june-2013-volume-38-number-3
+
+- The NVM Programming Technical Work Group (TWG) in SNIA has over 35
+  companies working together on NVM programming models, including
+  Persistent Memory.  You can read more about the TWG here:
+
+  	http://www.snia.org/tech_activities/work/twgs
+
+  and see a draft of their specification here:
+
+  	http://www.snia.org/tech_activities/publicreview
+
+- Viking Technology has an excellent FAQ on their NVDIMMs, providing an
+  excellent overview of the platform requirements including a description
+  of the ADR feature assumed by some of these example programs:
+
+	http://www.vikingtechnology.com/nvdimm-faq
+
+- The basics of NVDIMM at Wikipedia, with lots of additional links:
+
+	http://en.wikipedia.org/wiki/NVDIMM
+
+TODO
+
+Here are some ideas of examples we'd like to add to this collection next:
+
+- A transaction-based example, using an undo or redo log for consistency
+- An example using many files, perhaps with pointers between them
+- MT-safe versions of some the examples
+- Shared memory examples (multi-process sharing in addition to multi-thread)
+- An example of a Persistent cache built on PM
+- Bindings for other languages like Java, Python, etc.
+- Abstractions that fit into other languages (like Java Persistence API)

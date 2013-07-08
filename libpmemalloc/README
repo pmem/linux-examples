@@ -1,0 +1,60 @@
+This is libpmemalloc/README.
+
+This is an example of a simple Persistent Memory malloc-like library.
+
+WARNING: This example library is not suitable for production use in any
+real-world environment.  It is intended to provide a "complete enough"
+example of how to use Persistent Memory.  It deals with issues like making
+sure the memory pool is consistent and usable after a crash.  No attention
+was paid to making it an efficient general-purpose memory allocation library.
+This example is not MT safe or shared memory safe -- it assumes a single
+process using a memory-mapped file with maximum one thread executing code in
+this file at any given time.
+
+What you'll find here:
+
+	pmemalloc.c		This is the example itself, the malloc-like
+	pmemalloc.h		library.  Take a look at this code to see
+				how some common Persistent Memory problems
+				are solved.
+
+	PMEMALLOC_API.txt	This document describes how to write a
+				program that uses this example library.
+
+	design.txt		This is a (brief) design document that
+				describes the strategy used to make this
+				library resilient to crashes.
+
+	pmemalloc_test*.c	These are unit tests, but may also provide
+				useful examples for how to use this library.
+
+The point of this example is to provide code that people can look at
+to get ideas about how to use Persistent Memory.  But if you just want
+to run a unit test and see things working, try this:
+
+	make test1
+
+Also see the example in ../binarytree, which uses this library to build
+a binary tree data structure in Persistent Memory.
+
+
+TODO
+
+- pmemalloc_check() can do much more extensive checking.
+
+- There's some code replication that can be cleaned up.  Like the code
+  handling the ACTIVATING and FREEING states is similar and is also
+  replicated in the recovery code.
+
+- Get rid of the full recovery scan in pmemalloc_init() by keeping a list
+  of clumps that are potentially in transition in the pmem_pool_header and
+  just scanning those for work.
+
+- Handle larger transactions (instead of a limit of 3 "onactive" actions).
+
+- Handle pointers between different pmem pools -- right now all PM pointers
+  must be to something in the same pool.
+
+- Improve allocation performance (which currently degrades as more memory
+  is in-use, and degrades even worse on fragmentation).  Maintaining a
+  few extra pointers to optimize scans through the pool would go a long way.
