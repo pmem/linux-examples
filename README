@@ -20,7 +20,7 @@ PERSISTENT MEMORY
 Persistent Memory is an emerging technology providing a new tier between
 traditional storage and volatile memory with attributes from both.  The
 two main qualities of Persistent Memory are that it appears byte-addressable
-to applications (allowing load/store access rather than the block-based
+to applications (allowing direct load/store access rather than the block-based
 access of traditional storage) and that it is persistent.  The term
 Persistent Memory (PM), and the related term Storage Class Memory (SCM),
 may not have formal definitions that everyone agrees on, but these terms
@@ -28,8 +28,8 @@ usually refer to memory that an application can access directly, without
 demand-paging blocks in and out of a storage device.  The performance of
 PM is typically such that a processor load instruction can reasonably wait
 for data from PM (instead of context switching while a page fault is
-serviced).  So technologies like hard disks and NAND Flash are not
-considered fast enough by themselves -- a PM product built on those
+serviced).  Therefore technologies like hard disks and NAND Flash are not
+considered fast enough by themselves.  A PM product built on those
 technologies would have some additional hardware built in to maintain the
 performance expected by the processor during direct access.
 
@@ -42,7 +42,7 @@ access times seen when demand-paging is used.  Once you imagine applications
 storing information in PM, you quickly realize the need for a way to name
 regions of PM so that applications can re-connect to their data on start-up.
 Next, the need for a permission model and an administrative model for
-managing PM comes up (creating, deleting, backing it up, etc).  The
+managing PM comes up (creating, deleting, backing it up, etc.).  The
 industry direction for exposing PM to applications is for PM regions to
 be exposed via the native file APIs on an OS, or something very similar
 (see the SNIA information in the REFERENCES section below).  That's the
@@ -59,11 +59,11 @@ a normal file using the Linux mmap(2) system call, accesses it with loads
 and stores, and makes changes durable using the Linux msync(2) system
 call, will that program work without modification on a PM file?  Yes.
 But with a traditional file system, access to the memory-mapped file is 
-actually paging data in and out of DRAM, so mapping a file and changing
+actually paging data in and out of DRAM; mapping a file and changing
 a single byte involves a page fault (including a context switch or two),
 where a 4k block is read from storage into memory and a subsequent write
-of that 4k block to make the change durable.  With PM, it is possible
-to change that byte directly from the program, without wait for page faults
+of that 4k block to make the change durable.  With PM, it is possible to
+change that byte directly from the program, without waiting for page faults
 or using any DRAM buffers.  On PM the impact of changing a byte of data
 is likely much less than a page (probably more like a cache-line read
 so the change can happen in the processor cache, followed by a cache-line
@@ -73,21 +73,21 @@ flush to make the change durable).
 EXAMPLES
 
 Each example occupies a sub-directory here and the README in each
-sub-directory tells you why the example was written, how to run it and
-the tests for it, and what "make" targets are available to help you play
-with it.  At this top level, "make all" builds every example, "make clean"
-clears out intermediate files for all examples, and "make clobber"
-removes anything that is recreatable for all examples.
+sub-directory tells you why the example was written.  The README also
+described how to run the example and what unit tests are available.  At
+this top level, "make all" builds every example, "make clean" clears out
+intermediate files for all examples, and "make clobber" removes anything
+that is recreatable for all examples.
 
 Since these are for educational use, no attempt has been made to optimize
 them for performance, or even make then run on anything but Linux x86_64
 (they were all tested on a 64-bit Debian-based distro running the 3.2 kernel
 and gcc 4.7.2 initially).  Most of the examples are not MT-safe (unless
 making something MT-safe was part of the example).  All the examples are
-written in C and depend on nothing else besides libc and code in this repo.
+written in C and depend on nothing but libc and the code in this repo.
 This is to keep things simple and illustrate the low-level primitives for
 Persistent Memory.  Hopefully over time some higher-level language support
-will become common place and we'll add additional examples as they become
+will become commonplace and we'll add additional examples as they become
 available.  See the TODO section below for some ideas if you're looking to
 contribute.
 
@@ -99,21 +99,20 @@ this function which can be used instead of msync:
 
 	pmem_persist(addr, len, flags)
 
-injection testing of the examples.  See libpmem/README for more details
-on the methods available and the assumptions each method makes about the
-platform.
+See libpmem/README for more details on the methods available and the
+assumptions each method makes about the platform.
 
 What you'll find here:
 
 	LICENSE		The BSD license under which this code is available.
 
 	LINUX_PMEM_API.txt	The Linux Persistent Memory API, which is
-				really the decades-old memory-mapped file
+				primarily the decades-old memory-mapped file
 				API (part of POSIX) with a few optional
 				things added to it.
 
-	FAQ.txt		Frequenctly asked questions about these examples
-			about Persistent Memory.
+	FAQ.txt		Frequently asked questions about Persistent Memory
+			and about these examples.
 
 	trivial		A simple, self-contained, trivial example.  If you
 			don't know how to use mmap(2)/msync(2) or if you need
@@ -123,9 +122,9 @@ What you'll find here:
 			a trivial test you can play with.
 
 	basic		A very basic example.  It can store a few strings
-			to PM, it can read the strings already stored there.
-			This is the simplest example based on libpmem, so
-			it is a good place to start to understand how that
+			to PM and it can read the strings already stored
+			there.  This is the simplest example based on libpmem,
+			so it is a good place to start to understand how that
 			library is used.
 
 			See basic/README for details on how to run & test
@@ -159,8 +158,8 @@ What you'll find here:
 			frequency of variable length strings.
 
 	util		Some common routines for error reporting and
-			debug prints.  Not particularly interesting
-			and nothing to do with PM.
+			debug prints.  These have nothing to do with
+			Persistent Memory.
 
 	icount		Routines to count instructions and simulate crashes.
 			These are used for the fault injection runs where
@@ -227,7 +226,7 @@ algorithms.
 Most of the examples include test programs.  To validate that PM-resident
 data structures are managed in a way that is resilient to crashes, the
 icount code is used.  icount (described more in icount/README) provides a
-way to count the instructions executed in a test snippet of code, and the
+way to count the instructions executed in a test snippet of code, and then
 re-run that code again and again, simulating a crash between every possible
 pair of instructions in the test snippet.  Run "make allcounts" in the
 basic sub-directory for a demo.  Using the icount mechanism can be very,

@@ -1,3 +1,6 @@
+
+              This is version 0.8 of LINUX_PMEM_API.txt.
+
 NAME
 	Linux Persistent Memory Application Programming Interface
 
@@ -27,10 +30,11 @@ SYNOPSIS
 	pmem_persist(addr, nbytes, 0);
 
 	/* other interfaces described in this document... */
-	void pmem_flush_cache(void *addr, size_t len, int flags);
-	void pmem_fence(void);
-	void pmem_drain_pm_stores(void);
-	POSIX file APIs
+	pmem_flush_cache(addr, len, flags);
+	pmem_fence();
+	pmem_drain_pm_stores();
+
+	/* and many other POSIX file APIs... */
 
 	NOTE: If libpmem has not been installed on this system, you'll
 	      want to arrange for "pmem.h" to be included via a non-system
@@ -78,7 +82,9 @@ DESCRIPTION
 			closedir(3)
 			creat(2)
 			lseek(2)
+			madvise(2)
 			mkdir(2)
+			mprotect(2)
 			opendir(3)
 			readdir(3)
 			readlink(2)
@@ -103,7 +109,8 @@ DESCRIPTION
 		To begin accessing Persistent Memory, open(2) is used
 		just as it would be for any other file.  The open mode
 		specifies whether the file is opened read-only (O_RDONLY),
-		for read/write (O_RDWR), etc.
+		for read/write (O_RDWR), etc.  See the open(2) man page
+		for details.  
 
 	void *mmap(void *addr, size_t length, int prot, int flags,
 	           int fd, off_t offset);
@@ -115,9 +122,10 @@ DESCRIPTION
 		access to the Persistent Memory.  For traditional files,
 		using mmap this way will "demand-page" data in and out
 		of the system page cache as it is accessed.  This results
-		in unexpected latencies as when page faults occur.  But
-		with Persistent Memory, the page cache is avoided, providing
-		direct, uniform access to the memory itself.
+		in unpredictable latencies, much longer when page faults
+		happen to occur.  But with Persistent Memory, the page cache
+		is avoided, providing direct, uniform access to the memory
+		itself.
 		
 		The flag MAP_PRIVATE may be used, in which case reads will
 		come directly from Persistent Memory until a page is written
@@ -127,12 +135,14 @@ DESCRIPTION
 		and are discarded when the process calls munmap(2) or it
 		exits.
 
+		See the man page mmap(2) for details on this interface.
+
 	void *pmem_map(int fd, size_t len);
 
 		This function is just a convenience function that calls
 		mmap(2) with the appropriate arguments.  It is entirely
 		programmer preference on whether you use this function or
-		call mmap directly.
+		call mmap directly.  Returns NULL with errno set on failure.
 
 	int msync(void *addr, size_t length, int flags);
 
@@ -154,6 +164,9 @@ DESCRIPTION
 			 behavior is implied by the msync call.  It is a
 			 "flush" operation to catch anything that hasn't
 			 been flushed already.
+
+		See the man page msync(2), and the related pages mprotect(2)
+		and madvise(2) for more information.
 
 	void pmem_persist(void *addr, size_t len, int flags);
 
@@ -180,7 +193,7 @@ DESCRIPTION
 
 		These three functions provide partial versions of the
 		pmem_persist() function described above.  pmem_persist()
-		can be thought up as this:
+		can be thought of as this:
 
 		void pmem_persist(void *addr, size_t len, int flags)
 		{
@@ -201,7 +214,7 @@ DESCRIPTION
 		calling the pmem_fence() and pmem_drain_pm_stores() once.
 
 SEE ALSO
-	open(2), mmap(2), msync(2)
+	open(2), mmap(2), msync(2), mprotect(2), madvise(2)
 
 TODO
 
