@@ -30,7 +30,7 @@ Where I can purchase Persistent Memory?
 
 Can Persistent Memory be used transparently to applications?
 
-	Certainly.  One can easily imagine hardware completely mamaging
+	Certainly.  One can easily imagine hardware completely managing
 	Persistent Memory so that the Operating System and applications
 	have no idea it is even installed in the system.  Alternatively,
 	one can imagine the OS using Persistent Memory itself but not
@@ -68,7 +68,7 @@ What exactly do I need to do in order to make stores persistent?
 	it is installed in.  Check with the manufacturer of the Persistent
 	Memory you are using.  For some examples, see the REFERENCES section
 	of the top-level README.  The idea is that the gory details on how
-	you flush stores to the point fo durability in Persistent Memory
+	you flush stores to the point of durability in Persistent Memory
 	is contained in libraries like libpmem.  See the Linux API document
 	for a description of how your code can depend on libpmem for
 	making stores persistent.

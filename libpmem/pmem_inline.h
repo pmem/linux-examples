@@ -39,6 +39,10 @@
  * library functions will then be compiled into your program so
  * if the pmem library gets updated, your program will have to be
  * recompiled to use the updates.
+ *
+ * This inlined version only contains the cache-line version of
+ * the pmem interfaces (not the "msync mode" or "fault injection
+ * test mode" interfaces available with the full libpmem.
  */
 
 #include <sys/types.h>
