@@ -907,7 +907,7 @@ void pmemalloc_check(const char *path)
 	/*
 	 * print the report
 	 */
-	printf("Summary of pmem pool in \"%s\":\n", path);
+	printf("Summary of pmem pool:\n");
 	printf("File size: %lu, %d allocatable bytes in pool\n\n",
 			stbuf.st_size, clumptotal);
 	printf("     State      Bytes     Clumps    Largest   Smallest\n");
