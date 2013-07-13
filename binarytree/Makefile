@@ -51,10 +51,11 @@ tree.c: tree.h
 #
 # This takes a while to run.
 #
-CMD = rm -f testfile%C; ./tree_insert -F -i %C testfile%C one two three four; ../libpmemalloc/pmemalloc_check testfile%C; ./tree_walk testfile%C
+CMD = rm -f testfile%C; ./tree_insert -F -i %C testfile%C one two three four; ../libpmemalloc/pmemalloc_check testfile%C; ./tree_walk testfile%C; ../libpmemalloc/pmemalloc_check testfile%C; rm -f testfile%C
 
 allcounts: tree_insert ../libpmemalloc/pmemalloc_check tree_walk
-	@../icount/allcounts -j 200 '$(CMD)'
+	@../icount/allcounts -j 100 '$(CMD)'
+	@rm -f testfile*
 
 ../libpmemalloc/pmemalloc_check:
 	$(MAKE) -C ../libpmemalloc
