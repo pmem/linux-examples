@@ -122,6 +122,9 @@ pmemalloc_recover(void *pmp)
 		switch (state) {
 		case PMEM_STATE_RESERVED:
 			/* return the clump to the FREE pool */
+			for (i = PMEM_NUM_ON - 1; i >= 0; i--)
+				clp->on[i].off = 0;
+			pmem_persist(clp, sizeof(*clp), 0);
 			clp->size = sz | PMEM_STATE_FREE;
 			pmem_persist(clp, sizeof(*clp), 0);
 			break;
