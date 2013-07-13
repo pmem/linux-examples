@@ -55,7 +55,17 @@
 
 static pid_t Tracer_pid;		/* PID of tracer process */
 static int Tracerpipe[2];		/* pipe from tracer to parent */
-static unsigned long Total;	/* instruction count */
+static unsigned long Total;		/* instruction count */
+static void (*ohandler)();		/* old SIGRTMIN+15 handler */
+
+/*
+ * handler -- catch SIGRTMIN+15 in tracee once tracer is established
+ */
+static void
+handler()
+{
+	signal(SIGRTMIN+15, ohandler);
+}
 
 /*
  * trigger -- internal function used to detect start of tracing
@@ -72,14 +82,20 @@ static void
 tracer(unsigned long ttl)
 {
 	pid_t ppid = getppid();
+	int status;
 	int triggered = 0;
 
 	if (ptrace(PTRACE_ATTACH, ppid, 0, 0) < 0)
 		FATALSYS("PTRACE_ATTACH");
+	if (waitpid(ppid, &status, 0) < 0)
+		FATALSYS("waitpid(pid=%d)", ppid);
+	if (WIFSTOPPED(status)) {
+		if (ptrace(PTRACE_SYSCALL, ppid, 0, SIGRTMIN+15) < 0)
+			FATALSYS("PTRACE_SYSCALL");
+	} else
+		FATAL("unexpected wait status after attach: 0x%x", status);
 
 	while (1) {
-		int status;
-
 		if (waitpid(ppid, &status, 0) < 0)
 			FATALSYS("waitpid(pid=%d)", ppid);
 
@@ -157,9 +173,15 @@ icount_start(unsigned long life_remaining)
 	if ((Tracer_pid = fork()) < 0)
 		FATALSYS("fork");
 	else if (Tracer_pid) {
+		sigset_t mask;
+
 		/* parent */
 		close(Tracerpipe[1]);
-		sleep(1);		/* XXX must be a better solution */
+		sigemptyset(&mask);
+		if ((ohandler = signal(SIGRTMIN+15, handler)) == SIG_ERR)
+			FATALSYS("signal: SIGRTMIN+15");
+		sigsuspend(&mask);	/* wait for tracer to attach */
+		sleep(1);
 		trigger();
 		return;
 	} else {
