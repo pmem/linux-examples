@@ -42,9 +42,7 @@ include ../Makefile.inc
 # instructions in the test code snippet in icount_test.c.
 # The allcount script will then summarize the results of all the runs.
 #
-PRECMD = true
 CMD = ./icount_test %C
-POSTCMD = true
 
 allcounts: icount_test
-	@./allcounts '$(PRECMD)' '$(CMD)' '$(POSTCMD)'
+	@./allcounts -j 100 '$(CMD)'

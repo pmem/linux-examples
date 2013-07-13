@@ -1,5 +1,5 @@
 .*.swp
 *.o
 tags
-testfile
+testfile*
 *.out

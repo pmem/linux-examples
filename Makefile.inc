@@ -60,7 +60,7 @@ icount.o: ../icount/icount.c ../icount/icount.h
 	$(MAKE) -C ../libpmemalloc
 
 clean:
-	$(RM) *.o core a.out testfile
+	$(RM) *.o core a.out testfile*
 
 clobber: clean
 	$(RM) $(TARGETS)

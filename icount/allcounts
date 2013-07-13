@@ -33,6 +33,17 @@
 #
 # allcounts -- script to run through all possible crash scenarios
 #
+# Usage: allcounts [-j nproc] [-n] [-v] cmd
+#
+#	-j nprocs	Run up to nprocs processes concurrently.  This
+#			greatly improves the run-time of this script,
+#			especially on machines with lots of CPUs.  Try
+#			setting nprocs to be twice the number of CPUs
+#			in the system for starters.
+#	-n		Dry run -- only does full run and prints what it
+#			would do next instead of actually doing it.
+#	-v		Verbose -- lots of extra info printed.
+#
 # Given a program that contains a (hopefully small) snippet of test
 # code surrounded by icount_start() and icount_stop() calls, this
 # script runs the program once to find the total instruction count
@@ -42,7 +53,7 @@
 # argument.  See icount_test.c for a full example of a program written
 # to be tested by this script.
 #
-# This script captures all the output from all the runs and colates
+# This script captures all the output from all the runs and collates
 # the result, dumping a list of run numbers followed by the output
 # produced by those runs.  Since stopping a program between each possible
 # instruction often produces the same output again and again, the collated
@@ -52,76 +63,210 @@
 
 use strict;
 use warnings;
+use Getopt::Std;
 
-die "Usage: $0 pre-command command post-command\n" unless $#ARGV == 2;
+my $Me = $0;
+$Me =~ s,.*/,,;
 
-my $precmd = shift;
-my $cmd = shift;
-my $postcmd = shift;
-my $fullcmd;
+# options we accept
+our ($opt_j, $opt_n, $opt_v);
 
-print " Pre-Command: \"$precmd\"\n";
-print "     Command: \"$cmd\"\n";
-print "Post-Command: \"$postcmd\"\n";
+$ENV{PATH} = "/bin:/usr/bin";
+umask 077;
 
-`$precmd`;
-$fullcmd = subC(0);
-my $total = `$fullcmd; $postcmd`;
+my $tmpdir = "/tmp/allcounts$$";
 
-print "Full output:\n", $total;
+$SIG{HUP} = $SIG{INT} = $SIG{TERM} = $SIG{__DIE__} = sub {
+	die @_ if $^S;
 
-my %outputs;
+	my $errstr = shift;
+
+	cleanup();
+
+	die "========== ERROR: $errstr";
+};
+
+#
+# out -- like "print" but with equals before it so allcounts output sticks out
+#
+sub out (@) {
+	print "========== ", @_, "\n";
+}
+
+#
+# verbose -- like "print" but only in verbose mode
+#
+sub verbose (@) {
+	return unless $opt_v;
+
+	out @_;
+}
+
+#
+# usage -- print usage message and exit
+#
+sub usage {
+	my $msg = shift;
+
+	warn "$Me: $msg\n" if $msg;
+	warn "Usage: $Me [-j nproc] [-n] [-v] pre-cmd cmd post-cmd\n";
+	exit 1;
+}
+
+#
+# argument processing...
+#
+getopts('j:nv') or usage;
+
+usage unless @ARGV;
+
+my $cmd = join(' ', @ARGV);
+
+#
+# main program starts here...
+#
+verbose("Dry run.") if $opt_n;
+verbose("Running up to $opt_j jobs concurrently.") if $opt_j;
+$opt_j = 1 unless $opt_j;
+out "Command: \"$cmd\"";
+
+my $fullcmd = subC($cmd, 0);
+my $total = `($cmd) 2>\&1`;
+
+out "Full output:";
+print $total;
 
 $total =~ s/.*Total instruction count: (\d+).*/$1/s or
 	die "Instruction count not found\n";
 
-# don't need to try zero, and don't need to try all
-# just each number in-between
-for (my $i = 1; $i < $total; $i++) {
-	print "Running up to $i instructions... ";
-	`$precmd`;
-	$fullcmd = subC($i);
-	my $out = `$fullcmd 2>&1; $postcmd 2>&1`;
-	$out =~ s/Program terminated after $i instructions\n//;
-	push(@{$outputs{$out}}, $i);
-	print "\r";
-}
-print "All runs complete.                      \n";
+mkdir $tmpdir or die "mkdir: $tmpdir: $!\n";
+
+runjobs($cmd, $total, $tmpdir);
+collate($tmpdir);
+cleanup();
+
+exit 0;
 
 #
-# show results in line number order
+# runjobs -- perform all the runs, in parallel if possible
 #
-foreach my $out (sort { $outputs{$a}[0] <=> $outputs{$b}[0] } keys %outputs) {
+sub runjobs {
+	my ($cmd, $total, $tmpdir) = @_;
+	my $outstanding = 0;
+	my $completed = 0;
 
-	#
-	# compress "number,number,number,..." to "low-high" as appropriate
-	my $iters = shift @{$outputs{$out}};
-	my $rhs = $iters;
-	my $foundrange = 0;
-	while (@{$outputs{$out}}) {
-		my $val = shift @{$outputs{$out}};
-		if ($val == $rhs + 1) {
-			$rhs++;
-			$foundrange = 1;
-		} else {
-			$iters .= "-$rhs" if $foundrange;
-			$iters .= ",$val";
-			$rhs = $val;
-			$foundrange = 0;
+	# don't need to try zero, and don't need to try all
+	# just each number in-between
+	for (my $i = 1; $i < $total; $i++) {
+		if ($outstanding >= $opt_j) {
+			verbose "Waiting for a job to finish";
+			wait or die "wait: $!\n";
+			$outstanding--;
+			$completed++;
+			if ($completed % 100 == 0) {
+				out "Iterations completed: $completed";
+			}
+		}
+		verbose "Running iteration $i";
+		if ($opt_n) {
+			my $fullcmd = subC($cmd, $i);
+			out $fullcmd;
+			next;
+		}
+		defined (my $pid = fork) or die "fork: $!\n";
+		if ($pid == 0) {
+			#
+			# child
+			#
+			my $fullcmd = subC($cmd, $i);
+			open STDOUT, ">$tmpdir/$i" or die "$tmpdir/$i: $!\n";
+			open STDERR, '>&STDOUT';
+			system($fullcmd);
+			exit 0;
+		}
+		$outstanding++;
+	}
+	verbose "No more iterations to run";
+	while ($outstanding > 0) {
+		wait or die "wait: $!\n";
+		$outstanding--;
+		$completed++;
+		if ($completed % 100 == 0) {
+			out "Iterations completed: $completed";
 		}
 	}
-	$iters .= "-$rhs" if $foundrange;
-
-	print "Output for iterations: $iters\n";
-	print $out, "\n";
+	out "All iterations completed.";
 }
 
+#
+# collate -- summarize outputs from all runs
+#
+sub collate {
+	my ($dir) = @_;
+	my %output;
+
+	opendir(my $dh, $dir) || die "$dir: $!\n";
+	my @files = grep { /^\d+$/ } readdir($dh);
+	closedir($dh);
+
+	foreach my $file (sort {$a <=> $b} @files) {
+		open(my $fh, "$dir/$file") or die "$dir/$file: $!\n";
+		local $/;
+		my $contents = <$fh>;
+		$contents =~ s/Program terminated after \d+ instructions\n//;
+		push(@{$output{$contents}}, $file);
+		close($fh);
+		unlink "$dir/$file" or die "unlink: $dir/$file: $!\n";
+	}
+
+	#
+	# show results in line number order
+	#
+	foreach (sort {$output{$a}[0] <=> $output{$b}[0]} keys %output) {
+
+		# compress "number,number,number,..." to "low-high"
+		my $iters = shift @{$output{$_}};
+		my $rhs = $iters;
+		my $foundrange = 0;
+		while (@{$output{$_}}) {
+			my $val = shift @{$output{$_}};
+			if ($val == $rhs + 1) {
+				$rhs++;
+				$foundrange = 1;
+			} else {
+				$iters .= "-$rhs" if $foundrange;
+				$iters .= ",$val";
+				$rhs = $val;
+				$foundrange = 0;
+			}
+		}
+		$iters .= "-$rhs" if $foundrange;
+
+		out "Output for iterations: $iters";
+		print $_, "\n";
+	}
+}
+
+#
+# subC -- replace the string %C with a given value
+#
 sub subC {
-	my $c = shift;
+	my ($cmd, $c) = @_;
 	my $retval = $cmd;
 
-	$retval =~ s/%C/$c/;
+	$retval =~ s/%C/$c/g;
 	return $retval;
 }
 
-exit 0;
+#
+# cleanup -- delete temporary files
+#
+sub cleanup {
+	if (-d $tmpdir && opendir(my $dh, $tmpdir)) {
+		foreach (readdir($dh)) {
+			unlink "$tmpdir/$_" if /^\d+$/;
+		}
+		closedir($dh);
+		rmdir $tmpdir;
+	}
+}

@@ -45,13 +45,18 @@ include ../Makefile.inc
 #
 # This takes a while to run.
 #
-PRECMD = rm -f testfile
-CMD = ./basic -F -i %C testfile short1 "this string is designed to be longer than can fit in a 64-byte cacheline" short2
-CMD2 = ./basic -M -i %C testfile short1 "this string is designed to be longer than can fit in a 64-byte cacheline" short2
-POSTCMD = ./basic testfile
+CMD = rm -f testfile%C; ./basic -i %C testfile%C short1 "this string is designed to be longer than can fit in a 64-byte cacheline" short2; ./basic testfile%C
+CMDF = rm -f testfile%C; ./basic -F -i %C testfile%C short1 "this string is designed to be longer than can fit in a 64-byte cacheline" short2; ./basic testfile%C
+CMDM = rm -f testfile%C; ./basic -M -i %C testfile%C short1 "this string is designed to be longer than can fit in a 64-byte cacheline" short2; ./basic testfile%C
 
 allcounts: basic
-	@../icount/allcounts '$(PRECMD)' '$(CMD)' '$(POSTCMD)'
+	@../icount/allcounts -j 200 '$(CMD)'
+	@rm -f testfile*
 
-allcounts2: basic
-	@../icount/allcounts '$(PRECMD)' '$(CMD2)' '$(POSTCMD)'
+allcountsF: basic
+	@../icount/allcounts -j 200 '$(CMDF)'
+	@rm -f testfile*
+
+allcountsM: basic
+	@../icount/allcounts -j 200 '$(CMDM)'
+	@rm -f testfile*

@@ -94,11 +94,10 @@ test1: pmemalloc_test1 pmemalloc_check
 #
 # "make allcounts" takes a while to run.
 #
-PRECMD = rm -f testfile
-CMD = ./pmemalloc_test1 -F -i %C testfile 3 2 1
-POSTCMD = ./pmemalloc_test1 testfile; ./pmemalloc_check
+CMD = rm -f testfile%C; ./pmemalloc_test1 -F -i %C testfile%C 3 2 1; ./pmemalloc_test1 testfile%C; ./pmemalloc_check testfile%C
 
 allcounts: pmemalloc_test1 pmemalloc_check
-	@../icount/allcounts '$(PRECMD)' '$(CMD)' '$(POSTCMD)'
+	@../icount/allcounts -j 200 '$(CMD)'
+	@rm -f testfile*
 
 .PHONY: all clean clobber force allcounts test1

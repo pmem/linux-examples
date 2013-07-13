@@ -51,12 +51,10 @@ tree.c: tree.h
 #
 # This takes a while to run.
 #
-PRECMD = rm -f testfile
-CMD = ./tree_insert -F -i %C testfile one two three four
-POSTCMD = ../libpmemalloc/pmemalloc_check testfile; ./tree_walk testfile
+CMD = rm -f testfile%C; ./tree_insert -F -i %C testfile%C one two three four; ../libpmemalloc/pmemalloc_check testfile%C; ./tree_walk testfile%C
 
 allcounts: tree_insert ../libpmemalloc/pmemalloc_check tree_walk
-	@../icount/allcounts "$(PRECMD)" "$(CMD)" "$(POSTCMD)"
+	@../icount/allcounts -j 200 '$(CMD)'
 
 ../libpmemalloc/pmemalloc_check:
 	$(MAKE) -C ../libpmemalloc
