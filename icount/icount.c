@@ -49,6 +49,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdarg.h>
+#include <setjmp.h>
 
 #include "util/util.h"
 #include "icount/icount.h"
@@ -56,7 +57,8 @@
 static pid_t Tracer_pid;		/* PID of tracer process */
 static int Tracerpipe[2];		/* pipe from tracer to parent */
 static unsigned long Total;		/* instruction count */
-static void (*ohandler)();		/* old SIGRTMIN+15 handler */
+static unsigned long Nothing;
+static jmp_buf Trigjmp;
 
 /*
  * handler -- catch SIGRTMIN+15 in tracee once tracer is established
@@ -64,7 +66,29 @@ static void (*ohandler)();		/* old SIGRTMIN+15 handler */
 static void
 handler()
 {
-	signal(SIGRTMIN+15, ohandler);
+	longjmp(Trigjmp, 1);
+}
+
+/*
+ * pretrigger -- internal function used to detect start of tracing
+ *
+ * This function must immediately precede trigger() in this file.
+ */
+static void
+pretrigger(void)
+{
+	int x = getpid();
+
+	/*
+	 * this is just a few instructions to make sure
+	 * this function doesn't get optimized away into
+	 * nothing.  the tracer will find us here and send
+	 * us a signal, causing us to longjmp out.
+	 */
+	while (1) {
+		x++;	/* wait for tracer to attach */
+		Nothing += x;
+	}
 }
 
 /*
@@ -73,6 +97,7 @@ handler()
 static void
 trigger(void)
 {
+	Nothing = 0;	/* avoid totally empty function */
 }
 
 /*
@@ -84,16 +109,10 @@ tracer(unsigned long ttl)
 	pid_t ppid = getppid();
 	int status;
 	int triggered = 0;
+	int signaled = 0;
 
 	if (ptrace(PTRACE_ATTACH, ppid, 0, 0) < 0)
 		FATALSYS("PTRACE_ATTACH");
-	if (waitpid(ppid, &status, 0) < 0)
-		FATALSYS("waitpid(pid=%d)", ppid);
-	if (WIFSTOPPED(status)) {
-		if (ptrace(PTRACE_SYSCALL, ppid, 0, SIGRTMIN+15) < 0)
-			FATALSYS("PTRACE_SYSCALL");
-	} else
-		FATAL("unexpected wait status after attach: 0x%x", status);
 
 	while (1) {
 		if (waitpid(ppid, &status, 0) < 0)
@@ -118,7 +137,18 @@ tracer(unsigned long ttl)
 			if (ptrace(PTRACE_GETREGS, ppid, 0, &regs) < 0)
 				FATALSYS("PTRACE_GETREGS");
 
-			if ((unsigned long) regs.rip ==
+			if ((unsigned long)regs.rip >=
+					(unsigned long)pretrigger &&
+			    (unsigned long)regs.rip <
+					(unsigned long)trigger) {
+				if (!signaled) {
+					if (ptrace(PTRACE_SYSCALL, ppid, 0,
+							SIGRTMIN+15) < 0)
+						FATALSYS("PTRACE_SYSCALL");
+					signaled = 1;
+					continue;
+				}
+			} else if ((unsigned long) regs.rip ==
 					(unsigned long) trigger) {
 				triggered = 1;
 			} else if ((unsigned long) regs.rip ==
@@ -155,6 +185,20 @@ tracer(unsigned long ttl)
  * 	life_remaining -- simulate a crash after counting this many
  * 			  instructions.  pass in 0ull to disable this
  * 			  feature.
+ *
+ * There is some variability on how far the parent can get before the child
+ * attaches to it for tracing, especially when the system is loaded down
+ * (e.g. due to zillions of parallel icount traces happening at once).
+ * To coordinate this, we use a multi-step procedure where the tracee
+ * runs until it gets to the function pretrigger() and the tracer() detects
+ * that and raises a signal (SIGRTMIN+15) in the tracee, who then catches
+ * it and longjmps out of signal handler, back here, and then calls trigger().
+ *
+ * The multi-step coordination sounds complex, but it handles the
+ * surprisingly common cases where the tracer attached to the tracee
+ * before it even finished executing the libc fork() wrapper, and the
+ * other end of the spectrum where the tracee ran way too far ahead
+ * before the tracer attached and the tracer missed the call to trigger().
  */
 void
 icount_start(unsigned long life_remaining)
@@ -170,18 +214,17 @@ icount_start(unsigned long life_remaining)
 	if (pipe(Tracerpipe) < 0)
 		FATALSYS("pipe");
 
+	if (signal(SIGRTMIN+15, handler) == SIG_ERR)
+		FATALSYS("signal: SIGRTMIN+15");
+
 	if ((Tracer_pid = fork()) < 0)
 		FATALSYS("fork");
 	else if (Tracer_pid) {
-		sigset_t mask;
-
 		/* parent */
 		close(Tracerpipe[1]);
-		sigemptyset(&mask);
-		if ((ohandler = signal(SIGRTMIN+15, handler)) == SIG_ERR)
-			FATALSYS("signal: SIGRTMIN+15");
-		sigsuspend(&mask);	/* wait for tracer to attach */
-		sleep(1);
+		if (!setjmp(Trigjmp))
+			pretrigger();
+		close(-1);		/* harmless syscall for tracer */
 		trigger();
 		return;
 	} else {
