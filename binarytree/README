@@ -23,6 +23,15 @@ on the fault injection test mode in libpmem, and -d to enable debug output.
 
 The command:
 
+	make test
+
+will pull a bunch of text files from gutenberg.com and run them through
+the word frequency counting program "tree_wordfreq".  The Makefile does
+this using the freqtest script and then checks the output against expected
+output in "freqtest.pass".  The make succeeds if the test passes.
+
+The command:
+
 	make allcounts
 
 will perform a fault injection test run (takes a while to run).

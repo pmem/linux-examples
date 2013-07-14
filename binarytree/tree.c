@@ -121,7 +121,7 @@ tree_insert_subtree(struct tnode **rootp_, const char *s)
 		pmem_persist(&PMEM(Pmp, *rootp_)->count, sizeof(unsigned), 0);
 
 		DEBUG("new count=%u", PMEM(Pmp, *rootp_)->count);
-	} else if (diff > 0) {
+	} else if (diff < 0) {
 		/* recurse left */
 		tree_insert_subtree(&PMEM(Pmp, *rootp_)->left_, s);
 	} else {

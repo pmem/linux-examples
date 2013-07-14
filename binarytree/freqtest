@@ -1,0 +1,25 @@
+#!/bin/bash
+set -e
+files="4000.txt 4300.txt 4302.txt 4309.txt 4500.txt"
+
+echo Checking data files...
+for i in $files
+do
+	base=${i%.txt}
+	[ -f $i ] && continue
+	echo wget http://www.gutenberg.org/files/$base/$base.zip
+	wget http://www.gutenberg.org/files/$base/$base.zip
+	unzip $base.zip
+done
+
+echo Running test...
+echo rm testfile
+rm testfile
+echo ./tree_wordfreq testfile $files
+./tree_wordfreq testfile $files
+echo Checking results...
+
+../libpmemalloc/pmemalloc_check testfile
+echo Lines in tree: `./tree_walk testfile | wc -l`
+
+exit 0

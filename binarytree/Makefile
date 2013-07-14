@@ -31,7 +31,7 @@
 #
 # Makefile for binarytree example
 #
-TARGETS = tree_insert tree_walk tree_free
+TARGETS = tree_insert tree_walk tree_free tree_wordfreq
 OBJS = tree.o util.o icount.o
 LIBFILES = ../libpmemalloc/libpmemalloc.a ../libpmem/libpmem.a
 
@@ -40,6 +40,7 @@ include ../Makefile.inc
 tree_insert: tree_insert.o
 tree_walk: tree_walk.o
 tree_free : tree_free.o
+tree_wordfreq : tree_wordfreq.o
 
 tree.c: tree.h
 
@@ -59,3 +60,11 @@ allcounts: tree_insert ../libpmemalloc/pmemalloc_check tree_walk
 
 ../libpmemalloc/pmemalloc_check:
 	$(MAKE) -C ../libpmemalloc
+
+test: tree_wordfreq freqtest
+	./freqtest | tee freqtest.out
+	diff freqtest.out freqtest.pass
+
+clobber:
+	$(RM) 4000.txt 4300.txt 4302.txt 4309.txt 4500.txt
+	$(RM) 4000.zip 4300.zip 4302.zip 4309.zip 4500.zip

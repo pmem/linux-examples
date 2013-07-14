@@ -1,0 +1,16 @@
+Checking data files...
+Running test...
+rm testfile
+./tree_wordfreq testfile 4000.txt 4300.txt 4302.txt 4309.txt 4500.txt
+Checking results...
+Summary of pmem pool:
+File size: 10485760, 10469312 allocatable bytes in pool
+
+     State      Bytes     Clumps    Largest   Smallest
+      Free     543744          1     543744     543744
+  Reserved          0          0          0          0
+Activating          0          0          0          0
+    Active    9925568      77543        192        128
+   Freeing          0          0          0          0
+     TOTAL   10469312      77544     543744        128
+Lines in tree: 77543
