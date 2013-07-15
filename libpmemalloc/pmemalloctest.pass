@@ -1,0 +1,6 @@
+Running test...
+rm -f testfile
+./pmemalloc_test1 testfile 1 2 3 4
+./pmemalloc_test1 testfile
+4 3 2 1
+Done.

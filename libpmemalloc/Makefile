@@ -76,7 +76,7 @@ clobber: clean
 
 force:
 
-test1: pmemalloc_test1 pmemalloc_check
+test: pmemalloc_test1 pmemalloc_check
 	$(RM) testfile
 	./pmemalloc_test1 $(TESTARGS) -M testfile 2 3 4
 	./pmemalloc_check $(TESTARGS) testfile
@@ -99,5 +99,10 @@ CMD = rm -f testfile%C; ./pmemalloc_test1 -F -i %C testfile%C 3 2 1; ./pmemalloc
 allcounts: pmemalloc_test1 pmemalloc_check
 	@../icount/allcounts -j 200 '$(CMD)'
 	@rm -f testfile*
+
+test: pmemalloc_test1 pmemalloc_check pmemalloctest
+	@./pmemalloctest 2>&1 | tee pmemalloctest.out
+	@cmp -s pmemalloctest.out pmemalloctest.pass || (echo FAIL: pmemalloctest.out does not match pmemalloctest.pass; false)
+	@echo PASS
 
 .PHONY: all clean clobber force allcounts test1
