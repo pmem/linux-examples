@@ -42,4 +42,8 @@ clean:
 
 clobber: clean
 
+test:
+	# no util unit test
+	@echo PASS
+
 .PHONY: clean clobber
