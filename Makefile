@@ -50,7 +50,7 @@ clean	: TARGET = clean
 clobber	: TARGET = clobber
 test	: TARGET = test
 
-all clean clobber: $(SUBDIRS)
+all clean clobber test: $(SUBDIRS)
 
 $(SUBDIRS):
 	$(MAKE) -C $@ $(TARGET)
