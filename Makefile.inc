@@ -63,7 +63,7 @@ clean:
 	$(RM) *.o core a.out testfile*
 
 clobber: clean
-	$(RM) $(TARGETS)
+	$(RM) $(TARGETS) $(CLOBBERFILES)
 
 force:
 

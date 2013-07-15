@@ -34,6 +34,8 @@
 TARGETS = tree_insert tree_walk tree_free tree_wordfreq
 OBJS = tree.o util.o icount.o
 LIBFILES = ../libpmemalloc/libpmemalloc.a ../libpmem/libpmem.a
+CLOBBERFILES = 4000.txt 4300.txt 4302.txt 4309.txt 4500.txt\
+	       4000.zip 4300.zip 4302.zip 4309.zip 4500.zip
 
 include ../Makefile.inc
 
@@ -66,7 +68,3 @@ test: tree_wordfreq freqtest
 	@./freqtest 2>&1 | tee freqtest.out
 	@cmp -s freqtest.out freqtest.pass || (echo FAIL: freqtest.out does not match freqtest.pass; false)
 	@echo PASS
-
-clobber:
-	$(RM) 4000.txt 4300.txt 4302.txt 4309.txt 4500.txt
-	$(RM) 4000.zip 4300.zip 4302.zip 4309.zip 4500.zip
