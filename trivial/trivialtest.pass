@@ -1,0 +1,14 @@
+Running test...
+rm -f testfile
+dd if=/dev/zero of=testfile bs=4k count=1 status=noxfer
+1+0 records in
+1+0 records out
+./trivial testfile
+Done.
+od -c testfile
+0000000   H   e   l   l   o   ,       P   e   r   s   i   s   t   e   n
+0000020   t       M   e   m   o   r   y   !  \0  \0  \0  \0  \0  \0  \0
+0000040  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0
+*
+0010000
+Done.

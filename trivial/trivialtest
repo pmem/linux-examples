@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright (c) 2013, Intel Corporation
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -29,23 +31,40 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# Makefile for trivial example
+# trivialtest -- unit test for trivial example code
+#
+# trivialtest.pass contains the output this script generates if the test passes.
 #
 
-all: trivial
+nflag=
+while getopts '' opt
+do
+	case $opt in
+	n)
+		nflag=1
+		;;
+	?)
+		echo "Usage: $0" >&2
+		exit 1
+		;;
+	esac
+done
 
-trivial: trivial.c
-	$(CC) -o $@ $^
+set -e
 
-test: trivial trivialtest
-	@./trivialtest 2>&1 | tee trivialtest.out
-	@cmp -s trivialtest.out trivialtest.pass || (echo FAIL: trivialtest.out does not match trivialtest.pass; false)
-	@echo PASS
+echo Running test...
+echo rm -f testfile
+rm -f testfile
 
-clean:
-	$(RM) *.o core a.out testfile
+echo dd if=/dev/zero of=testfile bs=4k count=1 status=noxfer
+dd if=/dev/zero of=testfile bs=4k count=1 status=noxfer
 
-clobber: clean
-	$(RM) trivial
+echo ./trivial testfile
+./trivial testfile
 
-.PHONY: test clean clobber
+echo od -c testfile
+od -c testfile
+
+echo Done.
+
+exit 0
