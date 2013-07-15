@@ -63,7 +63,7 @@ allcounts: tree_insert ../libpmemalloc/pmemalloc_check tree_walk
 ../libpmemalloc/pmemalloc_check:
 	$(MAKE) -C ../libpmemalloc
 
-test: tree_wordfreq freqtest
+test: tree_walk tree_wordfreq freqtest
 	@./freqtest -n
 	@./freqtest 2>&1 | tee freqtest.out
 	@cmp -s freqtest.out freqtest.pass || (echo FAIL: freqtest.out does not match freqtest.pass; false)
