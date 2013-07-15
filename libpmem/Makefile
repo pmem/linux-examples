@@ -59,4 +59,8 @@ clean:
 clobber: clean
 	$(RM) $(TARGETS)
 
+test:
+	# no libpmem unit test
+	@echo PASS
+
 .PHONY: all clean clobber

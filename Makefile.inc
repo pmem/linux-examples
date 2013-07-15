@@ -67,4 +67,4 @@ clobber: clean
 
 force:
 
-.PHONY: all clean clobber force allcounts
+.PHONY: all clean clobber force allcounts test
