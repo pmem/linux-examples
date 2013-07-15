@@ -62,8 +62,10 @@ allcounts: tree_insert ../libpmemalloc/pmemalloc_check tree_walk
 	$(MAKE) -C ../libpmemalloc
 
 test: tree_wordfreq freqtest
-	./freqtest | tee freqtest.out
-	diff freqtest.out freqtest.pass
+	@./freqtest -n
+	@./freqtest 2>&1 | tee freqtest.out
+	@cmp -s freqtest.out freqtest.pass || (echo FAIL: freqtest.out does not match freqtest.pass; false)
+	@echo PASS
 
 clobber:
 	$(RM) 4000.txt 4300.txt 4302.txt 4309.txt 4500.txt

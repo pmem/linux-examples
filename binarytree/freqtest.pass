@@ -1,6 +1,5 @@
-Checking data files...
 Running test...
-rm testfile
+rm -f testfile
 ./tree_wordfreq testfile 4000.txt 4300.txt 4302.txt 4309.txt 4500.txt
 Checking results...
 Summary of pmem pool:
@@ -14,3 +13,4 @@ Activating          0          0          0          0
    Freeing          0          0          0          0
      TOTAL   10469312      77544     543744        128
 Lines in tree: 77543
+Done.
