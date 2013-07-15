@@ -1,0 +1,14 @@
+Running test...
+rm -f testfile
+./basic testfile one two three four
+./basic testfile
+one
+two
+three
+four
+0000000   o   n   e  \0   t   w   o  \0   t   h   r   e   e  \0   f   o
+0000020   u   r  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0
+0000040  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0  \0
+*
+0020000
+Done.

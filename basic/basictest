@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright (c) 2013, Intel Corporation
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -29,39 +31,38 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# Makefile for basic example
+# basictest -- unit test for basic example code
 #
-TARGETS = basic
-OBJS = basic.o util.o icount.o
-LIBFILES = ../libpmem/libpmem.a
-
-include ../Makefile.inc
-
+# basictest.pass contains the output this script generates if the test passes.
 #
-# The allcounts entry point runs basic via the allcounts
-# script, which will simulate a crash between every two adjacent
-# instructions in the test code snippet in basic.c.
-# The allcount script will then summarize the results of all the runs.
-#
-# This takes a while to run.
-#
-CMD = rm -f testfile%C; ./basic -i %C testfile%C short1 "this string is designed to be longer than can fit in a 64-byte cacheline" short2; ./basic testfile%C
-CMDF = rm -f testfile%C; ./basic -F -i %C testfile%C short1 "this string is designed to be longer than can fit in a 64-byte cacheline" short2; ./basic testfile%C
-CMDM = rm -f testfile%C; ./basic -M -i %C testfile%C short1 "this string is designed to be longer than can fit in a 64-byte cacheline" short2; ./basic testfile%C
 
-allcounts: basic
-	@../icount/allcounts -j 200 '$(CMD)'
-	@rm -f testfile*
+nflag=
+while getopts '' opt
+do
+	case $opt in
+	n)
+		nflag=1
+		;;
+	?)
+		echo "Usage: $0" >&2
+		exit 1
+		;;
+	esac
+done
 
-allcountsF: basic
-	@../icount/allcounts -j 200 '$(CMDF)'
-	@rm -f testfile*
+set -e
 
-allcountsM: basic
-	@../icount/allcounts -j 200 '$(CMDM)'
-	@rm -f testfile*
+echo Running test...
+echo rm -f testfile
+rm -f testfile
+echo ./basic testfile one two three four
+./basic testfile one two three four
+echo ./basic testfile
+./basic testfile
 
-test: basic basictest
-	@./basictest 2>&1 | tee basictest.out
-	@cmp -s basictest.out basictest.pass || (echo FAIL: basictest.out does not match basictest.pass; false)
-	@echo PASS
+od -c testfile
+
+echo Done.
+
+exit 0
+

@@ -48,6 +48,7 @@ SUBDIRS = basic\
 all	: TARGET = all
 clean	: TARGET = clean
 clobber	: TARGET = clobber
+test	: TARGET = test
 
 all clean clobber: $(SUBDIRS)
 
