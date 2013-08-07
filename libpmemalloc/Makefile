@@ -32,7 +32,8 @@
 # Makefile -- Makefile for libpmemalloc
 #
 
-TARGETS = libpmemalloc.a libpmemalloc.so pmemalloc_test1 pmemalloc_check
+TARGETS = libpmemalloc.a libpmemalloc.so pmemalloc_test1 pmemalloc_test2\
+	  pmemalloc_check
 INCS = -I..
 OBJS = pmemalloc.o util.o icount.o
 LIBFILES = ../libpmem/libpmem.a libpmemalloc.a
@@ -55,6 +56,9 @@ libpmemalloc.a libpmemalloc.so: CFLAGS += -fPIC
 
 pmemalloc_test1: pmemalloc_test1.o pmemalloc.h $(LIBFILES)
 	$(CC) -o $@ $(CFLAGS) $(INCS) pmemalloc_test1.c $(LIBFILES)
+
+pmemalloc_test2: pmemalloc_test2.o pmemalloc.h $(LIBFILES)
+	$(CC) -o $@ $(CFLAGS) $(INCS) pmemalloc_test2.c $(LIBFILES)
 
 pmemalloc_check: pmemalloc_check.o pmemalloc.h $(LIBFILES)
 	$(CC) -o $@ $(CFLAGS) $(INCS) pmemalloc_check.c $(LIBFILES)

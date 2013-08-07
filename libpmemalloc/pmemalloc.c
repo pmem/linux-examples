@@ -479,7 +479,17 @@ pmemalloc_reserve(void *pmp, size_t size)
 				clp->size = nsize | PMEM_STATE_RESERVED;
 				pmem_persist(clp, sizeof(*clp), 0);
 			} else {
+				int i;
+
 				DEBUG("no split required");
+
+				for (i = 0; i < PMEM_NUM_ON; i++) {
+					clp->on[i].off = 0;
+					clp->on[i].ptr_ = 0;
+				}
+				pmem_persist(clp, sizeof(*clp), 0);
+				clp->size = sz | PMEM_STATE_RESERVED;
+				pmem_persist(clp, sizeof(*clp), 0);
 			}
 
 			return ptr;

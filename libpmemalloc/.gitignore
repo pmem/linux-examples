@@ -1,4 +1,5 @@
 libpmemalloc.a
 libpmemalloc.so
 pmemalloc_test1
+pmemalloc_test2
 pmemalloc_check
