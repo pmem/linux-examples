@@ -51,3 +51,5 @@ test: icount_test
 	@./icount_test 4 2>&1 | tee icount_test.out
 	@cmp -s icount_test.out icount_test.pass || (echo FAIL: icount_test.out does not match icount_test.pass; false)
 	@echo PASS
+
+.PHONY: allcounts test

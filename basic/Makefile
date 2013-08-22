@@ -65,3 +65,5 @@ test: basic basictest
 	@./basictest 2>&1 | tee basictest.out
 	@cmp -s basictest.out basictest.pass || (echo FAIL: basictest.out does not match basictest.pass; false)
 	@echo PASS
+
+.PHONY: allcounts allcountsF allcountsM test

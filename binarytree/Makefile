@@ -68,3 +68,5 @@ test: tree_walk tree_wordfreq freqtest
 	@./freqtest 2>&1 | tee freqtest.out
 	@cmp -s freqtest.out freqtest.pass || (echo FAIL: freqtest.out does not match freqtest.pass; false)
 	@echo PASS
+
+.PHONY: allcounts test
