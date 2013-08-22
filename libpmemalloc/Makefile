@@ -109,4 +109,4 @@ test: pmemalloc_test1 pmemalloc_check pmemalloctest
 	@cmp -s pmemalloctest.out pmemalloctest.pass || (echo FAIL: pmemalloctest.out does not match pmemalloctest.pass; false)
 	@echo PASS
 
-.PHONY: all clean clobber force allcounts test1
+.PHONY: all clean clobber force allcounts test

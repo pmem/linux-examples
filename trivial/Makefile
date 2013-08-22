@@ -48,4 +48,4 @@ clean:
 clobber: clean
 	$(RM) trivial
 
-.PHONY: test clean clobber
+.PHONY: all test clean clobber
