@@ -55,5 +55,4 @@ all clean clobber test: $(SUBDIRS)
 $(SUBDIRS):
 	$(MAKE) -C $@ $(TARGET)
 
-.PHONY: all clean clobber $(SUBDIRS)
-
+.PHONY: all clean clobber test $(SUBDIRS)
