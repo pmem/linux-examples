@@ -35,11 +35,10 @@
  *
  * The purpoose is to verify MT safeness of the pmem_alloc library.
  * The program creates a specified number of allocator threads that
- * each create an associated freeing thread.  Allocated regions are
- * passed through a set of mailboxes to the freeing threads whose
- * job is to deallocate the regions in a different order.  If run
- * on a multi-socket & multi-core machine, this should create many
- * opportunities to find unsafe operations in the library.
+ * each create an associated freeing thread.  Random-size allocated
+ * pmem regions are passed through a set of mailboxes to the freeing
+ * threads which are concurrently deallocating regions in a random
+ * order. 
  *
  * Usage: mt_pmemalloc_test [-t num_threads]
  *                          [-r runtime]
@@ -78,7 +77,8 @@
  * Each allocating and freeing thread pair has a list of mailboxes.
  * The malloc thread will check for a NULL (empty) mailbox
  * and set it to point to a new region.  The freeing thread
- * will search for empty (NULL) mailboxes and free any pmem found.
+ * will search for empty (NULL) mailboxes in a ramdon order and
+ * free any pmem found.
  *
  * This will be stored in persistent memory and pmem region pointers
  * will be set using pmemalloc_activate to veryify its mt safeness.
@@ -236,10 +236,7 @@ main(int argc, char *argv[])
         }
     }
 
-    /*
-     * Synchronize the start so all the threads start
-     * close to the same time.
-     */
+    /* Give the new threads a chance to start */
     sleep(0);
 
     pthread_mutex_lock( &start_lock );
@@ -247,15 +244,11 @@ main(int argc, char *argv[])
     pthread_cond_broadcast( &start_cv );
     pthread_mutex_unlock( &start_lock );
 
-    /*
-     * Let run for the desired seconds then tell all threads to stop
-     */
+    /* Let run for the desired seconds then tell all threads to stop */
     sleep( runtime );
     b_all_stop = TRUE;
 
-    /*
-     * Wait for each alloating thread to complete.
-     */
+    /* Wait for each alloating thread to complete. */
     for (thrd=0; thrd<num_threads; ++thrd) {
         retval = pthread_join( alloc_threads[thrd], NULL );
         if (retval) {
