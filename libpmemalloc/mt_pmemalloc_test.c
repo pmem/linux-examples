@@ -43,7 +43,7 @@
  *
  * Usage: mt_pmemalloc_test [-t num_threads]
  *                          [-r runtime]
- *                          [-s alloc_size] path
+ *                          [-s alloc_size] [-d] path
  */
 
 #include <stdio.h>
@@ -65,10 +65,10 @@
 /*
  * Defaults.  Most can be over-ridden via command line options
  */
-#define	MAX_THREADS           128
-#define DEFAULT_RUNTIME       60
-#define DEFAULT_ALLOC_SIZE    4096
-#define MAILBOXES             128
+#define MAX_THREADS         128
+#define DEFAULT_RUNTIME     60
+#define DEFAULT_ALLOC_SIZE  4096
+#define MAILBOXES           128
 
 #define POOL_SIZE   ((MAX_THREADS * MAILBOXES * DEFAULT_ALLOC_SIZE) + \
                      (sizeof(void*) * MAILBOXES * MAX_THREADS) + \
@@ -102,7 +102,7 @@ static unsigned int max_malloc = DEFAULT_ALLOC_SIZE;
 static void *pmp;
 
 /* for USAGE() */
-char Usage[] = "[-t num_threads] [-r runtime] [-s alloc_size] path";
+char Usage[] = "[-t num_threads] [-r runtime] [-s alloc_size] [-d] path";
 
 int
 main(int argc, char *argv[])
@@ -115,54 +115,54 @@ main(int argc, char *argv[])
     void **sa_ptr;
     mailbox_array_t *mbx_offset_; 
 
-	Myname = argv[0];
+    Myname = argv[0];
 
-	while ((opt = getopt(argc, argv, "t:r:s:d")) != -1) {
-		switch (opt) {
-		case 't':
-			if (sscanf(optarg, "%u", &num_threads) == EOF) {
+    while ((opt = getopt(argc, argv, "t:r:s:d")) != -1) {
+        switch (opt) {
+        case 't':
+            if (sscanf(optarg, "%u", &num_threads) == EOF) {
                 USAGE( "-t option error");
             }
             if (num_threads > MAX_THREADS) {
                 fprintf( stderr, "using max threads %d\n", MAX_THREADS );
                 num_threads = MAX_THREADS;
             }
-			break;
+            break;
 
-		case 'r':
-			if (sscanf(optarg, "%u", &runtime)==EOF) {
+        case 'r':
+            if (sscanf(optarg, "%u", &runtime)==EOF) {
                 USAGE("-r option error");
             }
-			break;
-   
+            break;
+
         case 's':
-			if (sscanf(optarg, "%u", &max_malloc)==EOF) 
+            if (sscanf(optarg, "%u", &max_malloc)==EOF) 
                 USAGE("-s option error");
             break;
 
-		case 'd':
-			Debug=TRUE;
-			break;
+        case 'd':
+            Debug=TRUE;
+            break;
 
-		default:
-			USAGE(NULL);
-		} 
-	} /* end while opt */
+        default:
+            USAGE(NULL);
+        } 
+    } /* end while opt */
 
-	if (optind >= argc)
-		USAGE("No path given");
-	path = argv[optind++];
+    if (optind >= argc)
+        USAGE("No path given");
+    path = argv[optind++];
 
-	if (optind < argc)
-		USAGE(NULL);
+    if (optind < argc)
+        USAGE(NULL);
 
     /*
      * Use the alloc_init lib function to open the pool
      * via pmfs, and map it into our address space.
      * This returns a regular (absolute) pointer.
      */
-	if ((pmp = pmemalloc_init(path, POOL_SIZE)) == NULL)
-		FATALSYS("pmemalloc_init on %s", path);
+    if ((pmp = pmemalloc_init(path, POOL_SIZE)) == NULL)
+        FATALSYS("pmemalloc_init on %s", path);
 
 	/*
      * Fetch our static info.
@@ -170,7 +170,7 @@ main(int argc, char *argv[])
      * the mailbox array.  The library function converts this
      * to an absolute pointer.
      */
-	sa_ptr = (void**)pmemalloc_static_area(pmp);
+    sa_ptr = (void**)pmemalloc_static_area(pmp);
 
     /* Assume the static area for a new pmem pool is zero??????? */
     if (*sa_ptr == NULL) {
