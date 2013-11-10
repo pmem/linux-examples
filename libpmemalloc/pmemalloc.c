@@ -507,21 +507,40 @@ pmemalloc_reserve(void *pmp, size_t size)
 /*
  * pmemalloc_onactive -- set assignments for when reservation goes active
  *
+ * As described above, this function prepares the library to Activate
+ * a chunk of persistent memory that has already been Reserved.  To prevent
+ * permanent persistent memory leaks that could result if a system crashes
+ * or a program exits for any reason during the allocation process, a
+ * pointer to the chunk of memory must either be reliably transfered to
+ * whatever persistent data structure the program uses to track the memory,
+ * or returned to the free pool.  This function prepares the library to
+ * make that reliable transfer to the calling program's persistent data
+ * structure when pmemalloc_activate() is called.
+ *
  * Inputs:
- *	pmp -- a pmp as returned by pmemalloc_init()
+ *	pmp -- The pmp as returned by pmemalloc_init() for the persistent
+ *         Memory pool containing both the persistent memory chunk to
+ *         be allocated and the persistent data structure used by the
+ *         calling program to track the allocated persistent memory.
  *
- *	parentp_ -- pointer to atomically set
+ *  ptr_ -- Relative pointer to the persistent memory to be activated
+ *          as returned by pmemalloc_reserve()
  *
- *	nptr_ -- value to set in *parentp
+ *	parentp -- Absolute pointer to the persistent relative pointer
+ *             used by the calling program to track the chunk of
+ *             persistent memory referenced by ptr_.  The persistent
+ *             relative pointer must be within the same PM pool.
+ *
+ *	nptr_ -- The value to set in *parentp
  */
 void
-pmemalloc_onactive(void *pmp, void *ptr_, void **parentp_, void *nptr_)
+pmemalloc_onactive(void *pmp, void *ptr_, void **parentp, void *nptr_)
 {
 	struct clump *clp;
 	int i;
 
 	DEBUG("pmp=0x%lx, ptr_=0x%lx, parentp_=0x%lx, nptr_=0x%lx",
-			pmp, ptr_, parentp_, nptr_);
+			pmp, ptr_, parentp, nptr_);
 
 	clp = PMEM(pmp, (struct clump *)((uintptr_t)ptr_ - PMEM_CHUNK_SIZE));
 
@@ -535,7 +554,7 @@ pmemalloc_onactive(void *pmp, void *ptr_, void **parentp_, void *nptr_)
 
 	for (i = 0; i < PMEM_NUM_ON; i++)
 		if (clp->on[i].off == 0) {
-			DEBUG("using on[%d], off 0x%lx", i, OFF(pmp, parentp_));
+			DEBUG("using on[%d], off 0x%lx", i, OFF(pmp, parentp));
 			/*
 			 * order here is important:
 			 * 1. set ptr_
@@ -545,7 +564,7 @@ pmemalloc_onactive(void *pmp, void *ptr_, void **parentp_, void *nptr_)
 			 */
 			clp->on[i].ptr_ = nptr_;
 			pmem_persist(clp, sizeof(*clp), 0);
-			clp->on[i].off = OFF(pmp, parentp_);
+			clp->on[i].off = OFF(pmp, parentp);
 			pmem_persist(clp, sizeof(*clp), 0);
 			return;
 		}
@@ -554,23 +573,31 @@ pmemalloc_onactive(void *pmp, void *ptr_, void **parentp_, void *nptr_)
 }
 
 /*
- * pmemalloc_free -- set assignments for when allocation gets freed
+ * pmemalloc_onfree -- set assignments for when allocation gets freed
  *
  * Inputs:
- *	pmp -- a pmp as returned by pmemalloc_init()
+ *	pmp -- The pmp as returned by pmemalloc_init() for the persistent
+ *         Memory pool containing both the persistent memory chunk to
+ *         be returned and the persistent data structure used by the
+ *         calling program to track the allocated persistent memory.
  *
- *	parentp_ -- pointer to atomically set
+ *  ptr_ -- Relative pointer to the persistent memory to be returned
  *
- *	nptr_ -- value to set in *parentp
+ *	parentp -- Absolute pointer to the persistent relative pointer
+ *             used by the calling program to track the chunk of
+ *             persistent memory referenced by ptr_.  The persistent
+ *             relative pointer must be within the same PM pool.
+ *
+ *	nptr_ -- The value to set in *parentp
  */
 void
-pmemalloc_onfree(void *pmp, void *ptr_, void **parentp_, void *nptr_)
+pmemalloc_onfree(void *pmp, void *ptr_, void **parentp, void *nptr_)
 {
 	struct clump *clp;
 	int i;
 
 	DEBUG("pmp=0x%lx, ptr_=0x%lx, parentp_=0x%lx, nptr_=0x%lx",
-			pmp, ptr_, parentp_, nptr_);
+			pmp, ptr_, parentp, nptr_);
 
 	clp = PMEM(pmp, (struct clump *)((uintptr_t)ptr_ - PMEM_CHUNK_SIZE));
 
@@ -584,7 +611,7 @@ pmemalloc_onfree(void *pmp, void *ptr_, void **parentp_, void *nptr_)
 
 	for (i = 0; i < PMEM_NUM_ON; i++)
 		if (clp->on[i].off == 0) {
-			DEBUG("using on[%d], off 0x%lx", i, OFF(pmp, parentp_));
+			DEBUG("using on[%d], off 0x%lx", i, OFF(pmp, parentp));
 			/*
 			 * order here is important:
 			 * 1. set ptr_
@@ -594,7 +621,7 @@ pmemalloc_onfree(void *pmp, void *ptr_, void **parentp_, void *nptr_)
 			 */
 			clp->on[i].ptr_ = nptr_;
 			pmem_persist(clp, sizeof(*clp), 0);
-			clp->on[i].off = OFF(pmp, parentp_);
+			clp->on[i].off = OFF(pmp, parentp);
 			pmem_persist(clp, sizeof(*clp), 0);
 			return;
 		}

@@ -55,8 +55,8 @@
 void *pmemalloc_init(const char *path, size_t size);
 void *pmemalloc_static_area(void *pmp);
 void *pmemalloc_reserve(void *pmp, size_t size);
-void pmemalloc_onactive(void *pmp, void *ptr_, void **parentp_, void *nptr_);
-void pmemalloc_onfree(void *pmp, void *ptr_, void **parentp_, void *nptr_);
+void pmemalloc_onactive(void *pmp, void *ptr_, void **parentp, void *nptr_);
+void pmemalloc_onfree(void *pmp, void *ptr_, void **parentp, void *nptr_);
 void pmemalloc_activate(void *pmp, void *ptr_);
 void pmemalloc_free(void *pmp, void *ptr_);
 void pmemalloc_check(const char *path);
