@@ -31,9 +31,40 @@
  */
 
 /*
+ * Copyright (c) 2013, NetApp, Inc.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the NetApp, Inc. nor the names of its contributors
+ * may be used to endorse or promote products derived from this software without
+ * specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE..
+ */
+
+/*
  * basic.c -- illustrate basic load/store operations on PM
  *
- * usage: basic [-FMd] [-i icount] path [strings...]
+ * usage: basic [-FMRVd] [-i icount] path [strings...]
  *
  * 	Where <path> is a file on a Persistent Memory aware file system
  * 	like PMFS.  If path doesn't exist, this program will create it
@@ -50,6 +81,14 @@
  * 	The -M flag enables the msync-based version of libpmem.
  * 	Use this when you don't have a PM-aware file system and you're
  * 	running on traditional memory-mapped files instead.
+ *
+ *  The -R flag enables the multi-range version of pmem_persist.
+ *  Use this when you want to persist multiple dirty regions
+ *  together.
+ *
+ *  The -V flag enables the multi-range version of pmem_persist with verify.
+ *  Use this when you want to persist multiple dirty regions
+ *  together with Posix synchronized I/O data integrity completion.
  *
  * 	The -d flag turns on debugging prints.
  *
@@ -76,13 +115,13 @@
 #include "icount/icount.h"
 #include "libpmem/pmem.h"
 
-char Usage[] = "[-FMd] [-i icount] path [strings...]";	/* for USAGE() */
+char Usage[] = "[-FMRVd] [-i icount] path [strings...]";	/* for USAGE() */
 
 int
 main(int argc, char *argv[])
 {
 	int opt;
-	int iflag = 0;
+	int iflag = 0, iov_flag = 0, iov_verify_flag = 0;
 	unsigned long icount;
 	const char *path;
 	struct stat stbuf;
@@ -91,7 +130,7 @@ main(int argc, char *argv[])
 	char *pmaddr;
 
 	Myname = argv[0];
-	while ((opt = getopt(argc, argv, "FMdi:")) != -1) {
+	while ((opt = getopt(argc, argv, "FMRVdi:")) != -1) {
 		switch (opt) {
 		case 'F':
 			pmem_fit_mode();
@@ -99,6 +138,14 @@ main(int argc, char *argv[])
 
 		case 'M':
 			pmem_msync_mode();
+			break;
+
+		case 'R':
+			iov_flag++;
+			break;
+
+		case 'V':
+			iov_verify_flag++;
 			break;
 
 		case 'd':
@@ -149,9 +196,18 @@ main(int argc, char *argv[])
 	if (optind < argc) {	/* strings supplied as arguments? */
 		int i;
 		char *ptr = pmaddr;
+		struct iovec *dirty_addrs;
+		size_t dirty_count = 0;
+		int dirty_rc = 0;
 
 		if (iflag)
 			icount_start(icount);	/* start instruction count */
+
+
+		if (iov_flag || iov_verify_flag) {
+			dirty_addrs = (struct iovec *) malloc ((argc - optind)
+					* sizeof (struct iovec));
+		}
 
 		for (i = optind; i < argc; i++) {
 			size_t len = strlen(argv[i]) + 1; /* includes '\0' */
@@ -163,10 +219,22 @@ main(int argc, char *argv[])
 			strcpy(ptr, argv[i]);
 
 			/* make that change durable */
-			pmem_persist(ptr, len, 0);
+			if (iov_flag || iov_verify_flag) {
+				pmem_add_dirty_range(dirty_addrs, &dirty_count,
+							ptr, len);
+			} else
+				pmem_persist(ptr, len, 0);
 
 			ptr += len;
 			size -= len;
+		}
+
+		if (iov_flag) {
+			dirty_rc = pmem_persist_iov(dirty_addrs,
+						dirty_count, 0);
+		} else if (iov_verify_flag) {
+			dirty_rc = pmem_persist_iov_verify(dirty_addrs,
+							dirty_count, 0);
 		}
 
 		if (iflag) {
