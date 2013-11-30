@@ -44,6 +44,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdarg.h>
+#include <pthread.h>
 
 #include "util/util.h"
 #include "libpmem/pmem.h"
@@ -65,11 +66,19 @@ struct clump {
 
 /*
  * pool header kept at a known location in each memory-mapped file
+ * 
+ * Include a mutex in here for pthread safety even though it does
+ * not need to be persisted.  A future performance optimization may
+ * be to break this into a volatile pool state structure that could
+ * be stored in volatile memory along with other volatile state fields
+ * (e.g. lock stats)
  */
 struct pool_header {
-	char signature[16];	/* must be PMEM_SIGNATURE */
-	size_t totalsize;	/* total file size */
-	char padding[4096 - 16 - sizeof(size_t)];
+    char signature[16];	/* must be PMEM_SIGNATURE */
+    size_t totalsize;	/* total file size */
+    pthread_mutex_t pool_lock;  /* For manipulating chunk layout */
+    pthread_mutex_t activation_lock;    /* Used during activations */
+    char padding[4096 - 16 - sizeof(size_t) - 2*sizeof(pthread_mutex_t)];
 };
 
 /*
@@ -106,11 +115,13 @@ static void
 pmemalloc_recover(void *pmp)
 {
 	struct clump *clp;
+    struct pool_header *phdr;
 	int i;
 
 	DEBUG("pmp=0x%lx", pmp);
 
 	clp = PMEM(pmp, (struct clump *)PMEM_CLUMP_OFFSET);
+    phdr = PMEM(pmp, (struct pool_header *)PMEM_HDR_OFFSET);
 
 	while (clp->size) {
 		size_t sz = clp->size & ~PMEM_STATE_MASK;
@@ -169,6 +180,9 @@ pmemalloc_recover(void *pmp)
 		clp = (struct clump *)((uintptr_t)clp + sz);
 		DEBUG("next clp %lx, offset 0x%lx", clp, OFF(pmp, clp));
 	}
+    pthread_mutex_init(&phdr->pool_lock, NULL);
+    pthread_mutex_init(&phdr->activation_lock, NULL);
+    pmem_persist(phdr, sizeof(*phdr), 0);
 }
 
 /*
@@ -185,6 +199,7 @@ static void
 pmemalloc_coalesce_free(void *pmp)
 {
 	struct clump *clp;
+    struct pool_header  *phdr;
 	struct clump *firstfree;
 	struct clump *lastfree;
 	size_t csize;
@@ -194,6 +209,9 @@ pmemalloc_coalesce_free(void *pmp)
 	firstfree = lastfree = NULL;
 	csize = 0;
 	clp = PMEM(pmp, (struct clump *)PMEM_CLUMP_OFFSET);
+    phdr = PMEM(pmp, (struct pool_header *)PMEM_HDR_OFFSET);
+
+    pthread_mutex_lock( &phdr->pool_lock );
 
 	while (clp->size) {
 		size_t sz = clp->size & ~PMEM_STATE_MASK;
@@ -229,6 +247,7 @@ pmemalloc_coalesce_free(void *pmp)
 		firstfree->size = csize | PMEM_STATE_FREE;
 		pmem_persist(firstfree, sizeof(*firstfree), 0);
 	}
+    pthread_mutex_unlock( &phdr->pool_lock );
 }
 
 /*
@@ -317,6 +336,8 @@ pmemalloc_init(const char *path, size_t size)
 		 */
 		strcpy(hdr.signature, PMEM_SIGNATURE);
 		hdr.totalsize = size;
+        pthread_mutex_init( &hdr.pool_lock, NULL );
+        pthread_mutex_init( &hdr.activation_lock, NULL );
 		if (pwrite(fd, &hdr, sizeof(hdr), PMEM_HDR_OFFSET) < 0)
 			goto out;
 
@@ -423,14 +444,17 @@ pmemalloc_reserve(void *pmp, size_t size)
 {
 	size_t nsize = roundup(size + PMEM_CHUNK_SIZE, PMEM_CHUNK_SIZE);
 	struct clump *clp;
+    struct pool_header  *phdr;
 
 	DEBUG("pmp=0x%lx, size=0x%lx -> 0x%lx", pmp, size, nsize);
 
 	clp = PMEM(pmp, (struct clump *)PMEM_CLUMP_OFFSET);
+    phdr = PMEM(pmp, (struct pool_header *)PMEM_HDR_OFFSET);
 
 	if (clp->size == 0)
 		FATAL("no clumps found");
 
+    pthread_mutex_lock( &phdr->pool_lock );
 	/* first fit */
 	while (clp->size) {
 		size_t sz = clp->size & ~PMEM_STATE_MASK;
@@ -492,6 +516,7 @@ pmemalloc_reserve(void *pmp, size_t size)
 				pmem_persist(clp, sizeof(*clp), 0);
 			}
 
+            pthread_mutex_unlock( &phdr->pool_lock );
 			return ptr;
 		}
 
@@ -499,6 +524,7 @@ pmemalloc_reserve(void *pmp, size_t size)
 		DEBUG("[0x%lx] next clump", OFF(pmp, clp));
 	}
 
+    pthread_mutex_unlock( &phdr->pool_lock );
 	DEBUG("no free memory of size %lu available", nsize);
 	errno = ENOMEM;
 	return NULL;
@@ -538,14 +564,16 @@ pmemalloc_onactive(void *pmp, void *ptr_, void **parentp, void *nptr_)
 {
 	struct clump *clp;
 	int i;
+    struct pool_header *phdr;
 
 	DEBUG("pmp=0x%lx, ptr_=0x%lx, parentp_=0x%lx, nptr_=0x%lx",
 			pmp, ptr_, parentp, nptr_);
 
 	clp = PMEM(pmp, (struct clump *)((uintptr_t)ptr_ - PMEM_CHUNK_SIZE));
+    phdr = PMEM(pmp, (struct pool_header *)PMEM_HDR_OFFSET);
 
+    pthread_mutex_lock( &phdr->activation_lock );
 	ASSERTeq(clp->size & PMEM_STATE_MASK, PMEM_STATE_RESERVED);
-
 	DEBUG("[0x%lx] clump on: 0x%lx 0x%lx 0x%lx 0x%lx 0x%lx 0x%lx",
 			OFF(pmp, clp),
 			clp->on[0].off, clp->on[0].ptr_,
@@ -566,6 +594,7 @@ pmemalloc_onactive(void *pmp, void *ptr_, void **parentp, void *nptr_)
 			pmem_persist(clp, sizeof(*clp), 0);
 			clp->on[i].off = OFF(pmp, parentp);
 			pmem_persist(clp, sizeof(*clp), 0);
+            pthread_mutex_unlock( &phdr->activation_lock );
 			return;
 		}
 
@@ -595,11 +624,15 @@ pmemalloc_onfree(void *pmp, void *ptr_, void **parentp, void *nptr_)
 {
 	struct clump *clp;
 	int i;
+    struct pool_header *phdr;
 
 	DEBUG("pmp=0x%lx, ptr_=0x%lx, parentp_=0x%lx, nptr_=0x%lx",
 			pmp, ptr_, parentp, nptr_);
 
 	clp = PMEM(pmp, (struct clump *)((uintptr_t)ptr_ - PMEM_CHUNK_SIZE));
+    phdr = PMEM(pmp, (struct pool_header *)PMEM_HDR_OFFSET);
+
+    pthread_mutex_lock(&phdr->activation_lock);
 
 	ASSERTeq(clp->size & PMEM_STATE_MASK, PMEM_STATE_ACTIVE);
 
@@ -623,6 +656,7 @@ pmemalloc_onfree(void *pmp, void *ptr_, void **parentp, void *nptr_)
 			pmem_persist(clp, sizeof(*clp), 0);
 			clp->on[i].off = OFF(pmp, parentp);
 			pmem_persist(clp, sizeof(*clp), 0);
+            pthread_mutex_unlock(&phdr->activation_lock);
 			return;
 		}
 
@@ -643,10 +677,14 @@ pmemalloc_activate(void *pmp, void *ptr_)
 	struct clump *clp;
 	size_t sz;
 	int i;
+    struct pool_header *phdr;
 
 	DEBUG("pmp=%lx, ptr_=%lx", pmp, ptr_);
 
 	clp = PMEM(pmp, (struct clump *)((uintptr_t)ptr_ - PMEM_CHUNK_SIZE));
+    phdr = PMEM(pmp, (struct pool_header *)PMEM_HDR_OFFSET);
+
+    pthread_mutex_lock(&phdr->activation_lock);
 
 	ASSERTeq(clp->size & PMEM_STATE_MASK, PMEM_STATE_RESERVED);
 
@@ -684,6 +722,7 @@ pmemalloc_activate(void *pmp, void *ptr_)
 	pmem_persist(clp, sizeof(*clp), 0);
 	clp->size = sz | PMEM_STATE_ACTIVE;
 	pmem_persist(clp, sizeof(*clp), 0);
+    pthread_mutex_unlock(&phdr->activation_lock);
 }
 
 /*
@@ -701,11 +740,12 @@ pmemalloc_free(void *pmp, void *ptr_)
 	size_t sz;
 	int state;
 	int i;
+    struct pool_header *phdr;
 
 	DEBUG("pmp=%lx, ptr_=%lx", pmp, ptr_);
 
 	clp = PMEM(pmp, (struct clump *)((uintptr_t)ptr_ - PMEM_CHUNK_SIZE));
-
+    phdr = PMEM(pmp, (struct pool_header *)PMEM_HDR_OFFSET);
 
 	DEBUG("[0x%lx] clump on: 0x%lx 0x%lx 0x%lx 0x%lx 0x%lx 0x%lx",
 			OFF(pmp, clp),
@@ -713,11 +753,12 @@ pmemalloc_free(void *pmp, void *ptr_)
 			clp->on[1].off, clp->on[1].ptr_,
 			clp->on[2].off, clp->on[2].ptr_);
 
+    pthread_mutex_lock(&phdr->activation_lock);
 	sz = clp->size & ~PMEM_STATE_MASK;
 	state = clp->size & PMEM_STATE_MASK;
 
 	if (state != PMEM_STATE_RESERVED && state != PMEM_STATE_ACTIVE)
-		FATAL("freeing clumb in bad state: %d", state);
+		FATAL("freeing clump in bad state: %d", state);
 
 	if (state == PMEM_STATE_ACTIVE) {
 		/*
@@ -744,6 +785,7 @@ pmemalloc_free(void *pmp, void *ptr_)
 	}
 	clp->size = sz | PMEM_STATE_FREE;
 	pmem_persist(clp, sizeof(*clp), 0);
+    pthread_mutex_unlock(&phdr->activation_lock);
 
 	/*
 	 * at this point we may have adjacent free clumps that need
