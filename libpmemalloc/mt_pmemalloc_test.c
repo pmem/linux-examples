@@ -172,7 +172,7 @@ main(int argc, char *argv[])
      */
     sa_ptr = (void**)pmemalloc_static_area(pmp);
 
-    /* Assume the static area for a new pmem pool is zero??????? */
+    /* The static area for a new pmem pool is zero'd */
     if (*sa_ptr == NULL) {
         /*
          * Create and initialize the mailbox array in PM
@@ -189,6 +189,7 @@ main(int argc, char *argv[])
         
         /* Set the static, regular pointer to be used in the program */
         mbx_array_ptr = PMEM( pmp, mbx_offset_ );
+
         for (thrd=0; thrd<MAX_THREADS; ++thrd) {
             for (mbx=0; mbx<MAILBOXES; ++mbx) {
                 (*mbx_array_ptr)[thrd][mbx] = NULL;
