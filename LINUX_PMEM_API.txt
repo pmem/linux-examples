@@ -26,7 +26,7 @@ SYNOPSIS
 	/* make changes persistent */
 	msync(addr, nbytes, MS_SYNC);
 
-	/* optional, instead of mmap line above: */
+	/* optional, instead of msync line above: */
 	pmem_persist(addr, nbytes, 0);
 
 	/* other interfaces described in this document... */
