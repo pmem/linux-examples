@@ -2,7 +2,22 @@ LINUX EXAMPLES for PERSISTENT MEMORY PROGRAMMING
 
 This is the top-level README for the linux-examples repository.
 
-This repository contains some example programs for using Persistent Memory.
+PLEASE NOTE:  THIS REPOSITORY IS PROBABLY NOT WHAT YOU WANT!
+
+These examples were created as a way to explore the programming
+issues that come up with persistent memory.  Since these examples
+were first written, the NVM Library has been developed as a tested
+and documented way to support persistent memory.  You want NVML instead
+of the files here (this repo is just here for historical interest).
+
+GO HERE: https://github.com/pmem/nvml
+
+OR READ MORE ABOUT PMEM PROGRAMMING HERE: http://pmem.io
+
+
+
+This repository contains some exploratory ideas, used to
+illustrate the challenges of Persistent Memory programming.
 
 The goal is to build up a collection of simple examples to help people
 understand how Persistent Memory is exposed to applications.  These are
