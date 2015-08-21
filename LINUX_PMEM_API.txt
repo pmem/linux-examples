@@ -29,6 +29,14 @@ SYNOPSIS
 	/* optional, instead of msync line above: */
 	pmem_persist(addr, nbytes, 0);
 
+	/* optional, instead of msync line above: */
+	int pmem_persist_iov(const struct iovec *addrs, size_t count,
+				int flags);
+
+	/* optional, instead of msync line above: */
+	int pmem_persist_iov_verify(const struct iovec *addrs,
+					size_t count, int flags);
+
 	/* other interfaces described in this document... */
 	pmem_flush_cache(addr, len, flags);
 	pmem_fence();
@@ -184,6 +192,51 @@ DESCRIPTION
 			 virtue of normal cache eviction/replacement policies.
 			 Correctly written code must not depend on stores
 			 waiting until pmem_persist() is called to become
+			 persistent -- they can become persistent at any time
+			 before pmem_persist() is called.
+
+	void pmem_persist_iov(const struct iovec *addrs, size_t count,
+				int flags);
+
+		Force any changes in an array of (discontinuous) ranges
+		[addr, addr+len) to be stored durably in Persistent Memory.
+		This is an alternative to msync(2) and pmem_persist described
+		above. This might be even more optimal than pmem_persist above
+		as it will alleviate the overhead of enforcing memory barriers
+		after each flush if possible.
+
+		No flags have been defined for this call yet.
+
+		WARNING: Like msync(2) described above, there is nothing
+			 atomic or transactional about this call.  Any
+			 unwritten stores in the given range(s) will be written,
+			 but some stores may have already been written by
+			 virtue of normal cache eviction/replacement policies.
+			 Correctly written code must not depend on stores
+			 waiting until pmem_persist_iov() is called to become
+			 persistent -- they can become persistent at any time
+			 before pmem_persist() is called.
+
+	void pmem_persist_iov_verify(const struct iovec *addrs, size_t count,
+				int flags);
+
+		 Force any changes in an array of (discontinuous) ranges
+		 [addr, addr+len) to be stored durably in Persistent Memory
+		 with Posix synchronized I/O data integrity completion, i.e.
+		 O_SYNC-like behavior. This is an alternative to msync(2),
+		 pmem_persist and pmem_persist_iov described above. This
+		 ensures data integrity of writes unlike pmem_persist and
+		 pmem_persist_iov.
+
+		No flags have been defined for this call yet.
+
+		WARNING: Like msync(2) described above, there is nothing
+			 atomic or transactional about this call.  Any
+			 unwritten stores in the given range(s) will be written,
+			 but some stores may have already been written by
+			 virtue of normal cache eviction/replacement policies.
+			 Correctly written code must not depend on stores
+			 waiting until pmem_persist_iov() is called to become
 			 persistent -- they can become persistent at any time
 			 before pmem_persist() is called.
 
