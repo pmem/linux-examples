@@ -33,7 +33,7 @@
 #
 
 TARGETS = libpmemalloc.a libpmemalloc.so pmemalloc_test1 pmemalloc_test2\
-	  pmemalloc_check
+	  mt_pmemalloc_test pmemalloc_check
 INCS = -I..
 OBJS = pmemalloc.o util.o icount.o
 LIBFILES = ../libpmem/libpmem.a libpmemalloc.a
@@ -59,6 +59,9 @@ pmemalloc_test1: pmemalloc_test1.o pmemalloc.h $(LIBFILES)
 
 pmemalloc_test2: pmemalloc_test2.o pmemalloc.h $(LIBFILES)
 	$(CC) -o $@ $(CFLAGS) $(INCS) pmemalloc_test2.c $(LIBFILES)
+
+mt_pmemalloc_test: mt_pmemalloc_test.o pmemalloc.h $(LIBFILES)
+	$(CC) -o $@ -pthread $(CFLAGS) $(INCS) mt_pmemalloc_test.c $(LIBFILES)
 
 pmemalloc_check: pmemalloc_check.o pmemalloc.h $(LIBFILES)
 	$(CC) -o $@ $(CFLAGS) $(INCS) pmemalloc_check.c $(LIBFILES)
